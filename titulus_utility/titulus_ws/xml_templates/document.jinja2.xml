@@ -1,0 +1,44 @@
+<doc tipo="{{ tipo_documento }}" bozza="{{ bozza | default('no') }}" cod_amm_aoo="{{ cod_amm_aoo }}">
+    <autore>{{ autore }}</autore>
+    <oggetto>{{ oggetto }}</oggetto>
+
+    {% if voce_indice and (bozza | default('no')) == 'si' %}
+        <voce_indice>{{ voce_indice }}</voce_indice>
+    {% endif %}
+
+    <classif cod="{{ cod_classif }}">{{ classif }}</classif>
+    <allegato>{{ allegato }}</allegato>
+    <rif_interni>
+        <rif_interno diritto="RPA"
+                     nome_persona="{{ nome_persona_rif_interno }}"
+                     nome_uff="{{ nome_uff_rif_interno }}"
+                     cod_uff="{{ cod_uff_rif_interno }}"
+                     {% if cod_persona %}cod_persona="{{ cod_persona }}"{% endif %}/>
+    </rif_interni>
+    <rif_esterni>
+        <rif_esterno codice_fiscale="{{ codice_fiscale_rif_esterno }}">
+            <nome cod="{{ cod_nome_rif_esterno }}">
+                {{ nome_rif_esterno }}
+            </nome>
+
+            {% if indirizzo or email_rif_esterno or fax_rif_esterno or tel_rif_esterno %}
+                <indirizzo email="{{ email_rif_esterno }}"
+                           fax="{{ fax_rif_esterno }}"
+                           tel="{{ tel_rif_esterno }}"
+                           xml:space="preserve">
+                {{ indirizzo }}
+            </indirizzo>
+            {% endif %}
+
+        </rif_esterno>
+    </rif_esterni>
+
+    {% if invia_notifica_protocollazione and endpoint_notifica %}
+        <extra>
+            <notifiche>
+                <notifica type="REST" event="PROTOCOLLAZIONE" label="Notifica protocollazione fine iter" method="POST"
+                          url="{{ endpoint_notifica }}" includeNRecord="true" done="NO"/>
+            </notifiche>
+        </extra>
+    {% endif %}
+</doc>
