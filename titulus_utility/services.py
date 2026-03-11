@@ -10,6 +10,7 @@ from jinja2 import Template
 from titulus_utility.titulus_ws.protocollo import Protocollo
 from titulus_utility.titulus_ws.utils import get_protocol_dict
 from . import conf as titulus_settings
+from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
 
 logger = logging.getLogger(__name__)
 
@@ -319,19 +320,27 @@ def protocolla_arrivo(
         subject,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
         prot_template=None,
         principal_file_name="",
         principal_file=b"",
         attachments_folder=None,
         attachments=[],
         test=False,
-        label_notifica=None, method_notifica=None):
+        label_notifica=None,
+        method_notifica=None):
     """
     Invia un documento da protocollare "in arrivo" a Titulus.
     Usa gli attributi dell'utente Django (user) come riferimento esterno mittente.
     Passa poi le variabili elaborate a `_esegui_flusso_protocollo`.
     """
     logger.debug(f"Wrapper protocolla_arrivo invocato per l'utente {user.email}")
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo
 
     rif_esterno_data = {
@@ -368,6 +377,8 @@ def avvia_iter_arrivo(
         voce_indice=None,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
         prot_template=None,
         principal_file_name="",
         principal_file=b"",
@@ -383,6 +394,12 @@ def avvia_iter_arrivo(
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
     logger.debug("Wrapper avvia_iter_arrivo invocato.")
+
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
@@ -420,6 +437,8 @@ def protocolla_partenza(
         subject,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
         nome_rif_esterno=None,
         cognome_rif_esterno=None,
         cod_fis_rif_esterno=None,
@@ -429,13 +448,20 @@ def protocolla_partenza(
         principal_file=b"",
         attachments_folder=None,
         attachments=[],
-        test=False
-        , label_notifica=None, method_notifica=None):
+        test=False,
+        label_notifica=None,
+        method_notifica=None):
     """
     Protocolla un documento in "partenza". Riceve direttamente i dati anagrafici
     del destinatario nei kwargs.
     """
     logger.debug("Wrapper protocolla_partenza invocato.")
+
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno
 
     rif_esterno_data = {
@@ -471,6 +497,8 @@ def avvia_iter_partenza(
         voce_indice=None,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
         nome_rif_esterno=None,
         cognome_rif_esterno=None,
         cod_fis_rif_esterno=None,
@@ -491,6 +519,12 @@ def avvia_iter_partenza(
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
     logger.debug("Wrapper avvia_iter_partenza invocato.")
+
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT

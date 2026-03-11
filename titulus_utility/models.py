@@ -76,7 +76,7 @@ class CredentialWSProtocollo(models.Model):
             other.save(update_fields=["is_active", "modified"])
 
     @staticmethod
-    def get_active_protocol_configuration(obj):
+    def get_active_protocol_credential(obj):
         conf = CredentialWSProtocollo.objects.filter(
             content_type=ContentType.objects.get_for_model(obj),  # La traduzione avviene qui dentro
             object_id=str(obj.pk),
@@ -196,5 +196,13 @@ class ConfigurationWSProtocollo(TimeStampedModel):
             other.is_active = False
             other.save(update_fields=["is_active", "modified"])
 
+    @staticmethod
+    def get_active_protocol_configuration(obj):
+        conf = ConfigurationWSProtocollo.objects.filter(
+            content_type=ContentType.objects.get_for_model(obj),  # La traduzione avviene qui dentro
+            object_id=str(obj.pk),
+            is_active=True
+        ).first()
+        return conf if conf else False
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.linked_model_class, self.linked_model_pk)
