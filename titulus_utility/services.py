@@ -17,17 +17,23 @@ logger = logging.getLogger(__name__)
 def _assicura_formato_pdf(contenuto):
     """
     Verifica se il contenuto è un PDF. Se è una semplice stringa/testo,
-    lo converte in un PDF valido in memoria.
+    lo converte in un PDF valido in memoria usando ReportLab.
+
+    Utile per prevenire l'errore "ISO 32000-1" di Titulus che si verifica
+    quando si forza l'estensione '.pdf' su file che binariamente non lo sono.
     """
+    logger.debug("Verifica della conformità del contenuto al formato PDF.")
     # Se arriva come stringa, la codifichiamo in byte
     if isinstance(contenuto, str):
         contenuto = contenuto.encode('utf-8')
 
     # Controlliamo i "magic bytes": un PDF inizia sempre con %PDF
     if contenuto.startswith(b'%PDF'):
+        logger.debug("Magic bytes '%PDF' rilevati. Il contenuto è un file PDF valido.")
         return contenuto  # È già un PDF valido, non facciamo nulla!
 
     # Se non è un PDF, creiamo un PDF al volo con il testo ricevuto
+    logger.warning("Il file non è un PDF. Avvio conversione automatica in memoria tramite canvas.")
     testo_str = contenuto.decode('utf-8', errors='ignore')
 
     buffer = BytesIO()
@@ -44,6 +50,7 @@ def _assicura_formato_pdf(contenuto):
     p.showPage()
     p.save()
 
+    logger.debug("Conversione da testo a PDF completata con successo.")
     return buffer.getvalue()
 
 def _esegui_flusso_protocollo(
@@ -67,9 +74,16 @@ def _esegui_flusso_protocollo(
         voce_indice=None
 ):
     """
-    Funzione core fattorizzata per gestire l'intero flusso di comunicazione con Titulus
-    (protocollazione base o attivazione iter con notifica).
+    Funzione core per gestire l'intero flusso di comunicazione con Titulus.
+
+    Si occupa di:
+    1. Reperire le configurazioni (provenienti dai modelli in `models.py`).
+    2. Creare il payload corretto invocando `utils.get_protocol_dict()`.
+    3. Istanziate il client SOAP `Protocollo` (da `protocollo.py`).
+    4. Validare e iniettare gli allegati.
+    5. Richiedere la protocollazione o l'iter ed eventualmente la fascicolazione.
     """
+    logger.info(f"Avvio _esegui_flusso_protocollo. Tipo: {tipo}, Azione: {azione}, Test: {test}")
     if attachments_folder is None:
         attachments_folder = titulus_settings.FOLDER_FILE_PATH
 
@@ -82,6 +96,7 @@ def _esegui_flusso_protocollo(
     subject = subject.upper()
 
     if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
         prot_url = titulus_settings.PROTOCOL_TEST_URL
         prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
         prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
@@ -107,6 +122,7 @@ def _esegui_flusso_protocollo(
                                         None) if invia_notifica else None
 
     elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
         prot_url = titulus_settings.PROTOCOL_URL
         prot_login = credential_ws_protocollo.protocollo_username
         prot_passw = credential_ws_protocollo.protocollo_password
@@ -124,11 +140,14 @@ def _esegui_flusso_protocollo(
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT', None) if invia_notifica else None
 
     else:
-        raise Exception(_("Missing XML configuration or notification endpoint for production"))
+        error_msg = _("Missing XML configuration or notification endpoint for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
     uo_nome = dict(titulus_settings.UO_DICT).get(prot_uo, prot_uo)
 
     # Costruiamo il dizionario base combinandolo con i riferimenti esterni (che dipendono da arrivo/partenza)
+    logger.debug("Creazione payload tramite get_protocol_dict (da utils.py)")
     protocol_kwargs = dict(
         tipo=tipo,
         bozza=bozza,
@@ -159,7 +178,7 @@ def _esegui_flusso_protocollo(
         protocol_kwargs['endpoint_notifica'] = notification_endpoint
 
     protocol_data = get_protocol_dict(**protocol_kwargs)
-
+    logger.debug("Inizializzazione client Titulus (da protocollo.py)")
     wsclient = Protocollo(
         wsdl_url=prot_url,
         username=prot_login,
@@ -168,7 +187,7 @@ def _esegui_flusso_protocollo(
         **protocol_data,
     )
 
-    logger.info(f"Protocollazione richiesta {subject}")
+    logger.info(f"Gestione file principale richiesta per l'oggetto: {subject}")
     # --- GESTIONE FLESSIBILE DEL FILE PRINCIPALE ---
     if hasattr(principal_file, 'read'):
         # CASO 1: Oggetto "file-like"
@@ -202,6 +221,7 @@ def _esegui_flusso_protocollo(
     docPrinc.seek(0)  # Riportiamo il puntatore all'inizio
 
     if magic_bytes != b'%PDF':
+        logger.info("Il documento principale non è un PDF. Conversione forzata in corso.")
         # Non è un PDF (es. è b"Test" o un file di testo semplice).
         # Leggiamo tutto il contenuto grezzo...
         contenuto_grezzo = docPrinc.read()
@@ -218,6 +238,7 @@ def _esegui_flusso_protocollo(
 
     # attachments
     if attachments:
+        logger.info(f"Rilevati {len(attachments)} allegati aggiuntivi. Caricamento in corso.")
         for v in attachments:
             # 1. Costruiamo il percorso in modo sicuro e cross-platform
             file_path = os.path.join(attachments_folder, v)
@@ -232,22 +253,26 @@ def _esegui_flusso_protocollo(
                 )
 
     # Esecuzione dell'azione specifica
+    logger.debug(f"Chiamata a wsclient per azione: {azione}")
     if azione == 'protocolla':
         wsclient.protocolla(test=test)
         assert getattr(wsclient, 'numero', None)
         result_key = "numero"
         result_val = wsclient.numero
+        logger.info(f"Azione completata. Protocollato: {result_val}")
     elif azione == 'attiva_iter':
         wsclient.salva_bozza_e_attiva_iter(test=test)
         assert getattr(wsclient, 'nrecord', None)
         result_key = "nrecord"
         result_val = wsclient.nrecord
+        logger.info(f"Azione completata. Iter attivato su nrecord: {result_val}")
 
     principal_file_result = {result_key: result_val}
 
     # Fascicolazione separata
     if titulus_settings.FASCICOLAZIONE_SEPARATA and prot_fascicolo_num:
         # Recupera sia il numero (se protocollato) che nrecord (se bozza/iter)
+        logger.info("Fascicolazione separata attiva. Avvio processo.")
         doc_num_prot = getattr(wsclient, 'numero', '')
         doc_nrecord = getattr(wsclient, 'nrecord', '')
 
@@ -272,10 +297,12 @@ def _esegui_flusso_protocollo(
             # Identificativo per i log: usa il numero se presente, altrimenti nrecord
             doc_id_for_log = doc_num_prot if doc_num_prot else doc_nrecord
             msg = f"Fascicolazione avvenuta: {prot_fascicolo_num} in {doc_id_for_log}"
+            logger.info(msg)
 
         except Exception as e:
             doc_id_for_log = doc_num_prot if doc_num_prot else doc_nrecord
             msg = f"Fascicolazione fallita: {prot_fascicolo_num} in {doc_id_for_log} - {e}"
+            logger.error(msg)
 
         principal_file_result["message"] = msg
         logger.info(msg)
@@ -300,8 +327,11 @@ def protocolla_arrivo(
         test=False,
         label_notifica=None, method_notifica=None):
     """
-    Protocolla un documento in arrivo.
+    Invia un documento da protocollare "in arrivo" a Titulus.
+    Usa gli attributi dell'utente Django (user) come riferimento esterno mittente.
+    Passa poi le variabili elaborate a `_esegui_flusso_protocollo`.
     """
+    logger.debug(f"Wrapper protocolla_arrivo invocato per l'utente {user.email}")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo
 
     rif_esterno_data = {
@@ -348,9 +378,11 @@ def avvia_iter_arrivo(
         label_notifica='Invio notifica fine ITER',
         method_notifica='POST'):
     """
-    Salva la bozza in entrata e attiva l'iter.
+    Salva il documento "in arrivo" in stato "bozza" e avvia il relativo Iter
+    passando il parametro `voce_indice` (se mappato nei settings).
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
+    logger.debug("Wrapper avvia_iter_arrivo invocato.")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
@@ -400,8 +432,10 @@ def protocolla_partenza(
         test=False
         , label_notifica=None, method_notifica=None):
     """
-    Protocolla un documento in partenza.
+    Protocolla un documento in "partenza". Riceve direttamente i dati anagrafici
+    del destinatario nei kwargs.
     """
+    logger.debug("Wrapper protocolla_partenza invocato.")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno
 
     rif_esterno_data = {
@@ -452,9 +486,11 @@ def avvia_iter_partenza(
         method_notifica='POST'
 ):
     """
-    Salva la bozza in uscita e attiva l'iter.
+    Salva il documento "in partenza" in stato "bozza" e avvia il relativo Iter
+    passando il parametro `voce_indice` (se mappato nei settings).
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
+    logger.debug("Wrapper avvia_iter_partenza invocato.")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT

@@ -1,12 +1,34 @@
+import logging
 
+logger = logging.getLogger(__name__)
 
 def get_protocol_dict(**kwargs):
-    # Controllo di obbligatorietà senza valori di default
+    """
+        Costruisce e normalizza il dizionario dei dati per la protocollazione.
+
+        Questa funzione fa da ponte tra i wrapper di alto livello in `services.py` e
+        il client SOAP di `protocollo.py`. Prende in input i parametri (kwargs) estratti
+        dai modelli e dalle chiamate, validando quelli obbligatori, e restituisce un
+        dizionario formattato esattamente per il rendering del template `document.jinja2.xml`.
+
+        Args:
+            **kwargs: Variabili di contesto (tipo, oggetto, aoo, destinatario, rif_esterno, ecc.).
+
+        Returns:
+            dict: Dizionario normalizzato pronto per essere passato a `Protocollo()`.
+
+        Raises:
+            ValueError: Se mancano parametri obbligatori come 'tipo' o 'oggetto'.
+        """
     if 'tipo' not in kwargs or not kwargs['tipo']:
-        raise ValueError("Il parametro 'tipo' (es. 'arrivo', 'partenza') è obbligatorio.")
+        error_msg = "Il parametro 'tipo' (es. 'arrivo', 'partenza') è obbligatorio."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     if 'oggetto' not in kwargs or not kwargs['oggetto']:
-        raise ValueError("Il parametro 'oggetto' è obbligatorio.")
+        error_msg = "Il parametro 'oggetto' è obbligatorio."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     protocol_data = {
         # --- Variabili base ---
@@ -49,4 +71,6 @@ def get_protocol_dict(**kwargs):
         'label_notifica': kwargs.get('label_notifica','Invio notifica fine ITER'),
         'method_notifica': kwargs.get('method_notifica','POST'),
     }
+    logger.debug(
+        f"Dizionario di protocollazione costruito con successo. Tipo: {protocol_data['tipo_documento']}, Bozza: {protocol_data['bozza']}")
     return protocol_data

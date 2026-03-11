@@ -14,6 +14,14 @@ if 'makemigrations' in sys.argv or 'migrate' in sys.argv:  # pragma: no cover
 
 
 class CredentialWSProtocollo(models.Model):
+    """
+        Modello per l'archiviazione delle credenziali di accesso al WS Titulus.
+
+        Usa una GenericForeignKey per legarsi in modo lasso a qualsiasi modello
+        del progetto Django genitore. Le istanze recuperate da questo modello
+        (assieme a ConfigurationWSProtocollo) vengono passate ai servizi di
+        `services.py` per autorizzare le chiamate SOAP inoltrate da `protocollo.py`.
+    """
     # 1. Puntatore al modello
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     # 2. ID dell'oggetto (manteniamo CharField per flessibilità PK)
@@ -89,6 +97,13 @@ class TimeStampedModel(models.Model):
 
 
 class ConfigurationWSProtocollo(TimeStampedModel):
+    """
+        Modello per l'archiviazione dei parametri di rete/ufficio (UO, RPA, titolario).
+
+        Accoppiato al modello `CredentialWSProtocollo`, fornisce i metadati necessari a
+        `utils.get_protocol_dict()` per formattare l'XML e a `protocollo.py` per fascicolare
+        il documento. Viene consumato dai wrappers di `services.py`.
+    """
     # 1. Puntatore al modello
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     # 2. ID dell'oggetto (manteniamo CharField per flessibilità PK)

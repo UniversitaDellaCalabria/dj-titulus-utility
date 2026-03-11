@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 
 class WSTitulusClient(object):
     """
-    Client per il Web Service Titulus
+    Client per il Web Service Titulus.
+
+    Gestisce la comunicazione SOAP di basso livello tramite Zeep.
+    Viene istanziato da `services.py` ricevendo in ingresso il dizionario
+    generato da `utils.get_protocol_dict()`. Si occupa di renderizzare il
+    template JinjaXML, gestire l'upload degli allegati (AttachmentBean) e
+    inviare la richiesta di protocollazione/salvataggio (SaveDocument).
     """
 
     def __init__(self,
@@ -31,6 +37,7 @@ class WSTitulusClient(object):
         self.wsdl_url = wsdl_url
 
         if template_xml_flusso is None:
+            logger.debug("Caricamento del template XML di default per Titulus.")
             with open(titulus_settings.TEMPLATE_DOCUMENT_JINJAXML, 'r', encoding='utf-8') as f:
                 self.template_xml_flusso = f.read()
         else:
@@ -39,7 +46,8 @@ class WSTitulusClient(object):
         jinja_template = Template(self.template_xml_flusso)
         self.doc = jinja_template.render(**kwargs)
 
-        logger.info(f"Protocollazione Titulus {self.doc}")
+        logger.info(f"Inizializzazione WSTitulusClient completata per l'oggetto: {kwargs.get('oggetto', 'N/D')}")
+        logger.debug(f"XML Renderizzato (Doc): {self.doc}")
 
         # RPA username and code
         # (per impersonificare RPA in fascicolazione!)
@@ -69,71 +77,94 @@ class WSTitulusClient(object):
         self.allegati = []
 
     def connect(self):
-        """
-        """
-        session = Session()
-        settings_zeep = Settings(strict=False, xml_huge_tree=True)
-        session.auth = HTTPBasicAuth(self.username,
-                                     self.password)
-        transport = Transport(session=session)
-        self.client = Client(self.wsdl_url,
-                             transport=transport,
-                             settings=settings_zeep)
-        self.service = self.client.bind('Titulus4Service', 'Titulus4')
-        return self.client
+        """Stabilisce la connessione con il Web Service SOAP tramite Zeep."""
+        logger.debug(f"Tentativo di connessione al WSDL: {self.wsdl_url}")
+        try:
+            session = Session()
+            settings_zeep = Settings(strict=False, xml_huge_tree=True)
+            session.auth = HTTPBasicAuth(self.username,
+                                         self.password)
+            transport = Transport(session=session)
+            self.client = Client(self.wsdl_url,
+                                 transport=transport,
+                                 settings=settings_zeep)
+            self.service = self.client.bind('Titulus4Service', 'Titulus4')
+            return self.client
+        except Exception as e:
+            logger.exception(f"Errore durante la connessione al Web Service: {e}")
+            raise
 
     def is_connected(self):
         return True if self.client else False
 
     def assure_connection(self):
+        """Verifica lo stato della connessione e la avvia se assente."""
         if not self.is_connected():
             self.connect()
 
     def _esegui_salvataggio(self, is_bozza=False, force=False):
         """
-        Funzione core fattorizzata per l'invio del payload a Titulus.
+        Invia il payload e gli allegati a Titulus (Metodo Core).
+
+        Viene invocato dai wrapper `protocolla` e `salva_bozza_e_attiva_iter`.
+        Richiede ed elabora i tipi complessi definiti nel WSDL (SaveParams, AttachmentBean).
+
+        Args:
+            is_bozza (bool): Se True, il documento viene salvato senza assegnare un numero di protocollo.
+            force (bool): Se True, forza il salvataggio ignorando eventuali controlli di presenza di un numero pregresso.
+
+        Returns:
+            bool: True se la chiamata va a buon fine, assegnando a `self.numero` o `self.nrecord` la risposta.
         """
+        logger.info(f"Esecuzione salvataggio (bozza: {is_bozza}, force: {force})")
         self.assure_connection()
         namespaces = titulus_settings.PROTOCOL_NAMESPACES
 
         if not force:
             if not is_bozza and (self.numero or self.anno):
-                raise Exception(('Stai tentando di protocollare '
-                                 'una istanza che ha già un '
-                                 'numero e un anno: {}/{}').format(self.numero, self.anno))
+                error_msg = f'Tentativo di protocollare un\'istanza con numero/anno già assegnati: {self.numero}/{self.anno}'
+                logger.error(error_msg)
+                raise Exception(error_msg)
             if is_bozza and self.nrecord:
-                raise Exception(('Stai tentando di salvare in bozza '
-                                 'una istanza che ha già un nrecord'
-                                 ': {}').format(self.nrecord))
+                error_msg = f'Tentativo di salvare in bozza un\'istanza con nrecord già assegnato: {self.nrecord}'
+                logger.error(error_msg)
+                raise Exception(error_msg)
 
         ns0 = namespaces["ns0"]
         ns2 = namespaces["ns2"]
+        try:
+            self.client.get_type(f'{ns0}AttachmentBean')
+            attachmentBeans_type = self.client.get_type(f'{ns2}ArrayOf_tns1_AttachmentBean')
+            saveParams = self.client.get_type(f'{ns0}SaveParams')()
 
-        self.client.get_type(f'{ns0}AttachmentBean')
-        attachmentBeans_type = self.client.get_type(f'{ns2}ArrayOf_tns1_AttachmentBean')
-        saveParams = self.client.get_type(f'{ns0}SaveParams')()
+            attachmentBeans = attachmentBeans_type(self.allegati)
 
-        attachmentBeans = attachmentBeans_type(self.allegati)
+            saveParams.pdfConversion = True
+            saveParams.sendEMail = self.send_email
 
-        saveParams.pdfConversion = True
-        saveParams.sendEMail = self.send_email
+            logger.debug(f"Invocazione servizio saveDocument. Allegati totali: {len(self.allegati)}")
+            saveDocumentResponse = self.service.saveDocument(document=self.doc,
+                                                             attachmentBeans=attachmentBeans,
+                                                             params=saveParams)
 
-        saveDocumentResponse = self.service.saveDocument(document=self.doc,
-                                                         attachmentBeans=attachmentBeans,
-                                                         params=saveParams)
+            if saveDocumentResponse:
+                logger.debug(f"Risposta raw da saveDocument: {saveDocumentResponse._value_1}")
+                root = ET.fromstring(saveDocumentResponse._value_1)
+                attribs = root[1][0].attrib
 
-        if saveDocumentResponse:
-            root = ET.fromstring(saveDocumentResponse._value_1)
-            attribs = root[1][0].attrib
+                # Parsing dinamico: popoliamo in modo sicuro le variabili di classe
+                if 'num_prot' in attribs:
+                    self.numero = attribs['num_prot']
+                    logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.numero}")
 
-            # Parsing dinamico: popoliamo in modo sicuro le variabili di classe
-            if 'num_prot' in attribs:
-                self.numero = attribs['num_prot']
+                if 'nrecord' in attribs:
+                    self.nrecord = attribs['nrecord']
+                    logger.info(f"Salvataggio completato. Assegnato Nrecord: {self.nrecord}")
 
-            if 'nrecord' in attribs:
-                self.nrecord = attribs['nrecord']
-
-            return True
+                return True
+        except Exception as e:
+            logger.exception(f"Errore fatale durante _esegui_salvataggio: {e}")
+            raise
 
     def protocolla(self, test=False, force=False):
         """Wrapper per la protocollazione diretta"""
@@ -156,50 +187,78 @@ class WSTitulusClient(object):
                           descrizione,
                           is_doc_princ=False,
                           test=False):
+        """
+            Codifica un file in Base64 e lo aggiunge alla lista degli allegati SOAP.
 
+            Args:
+                fopen (file-like): Il file aperto in modalità binaria (rb).
+                nome (str): Nome del file con estensione.
+                descrizione (str): Descrizione dell'allegato.
+                is_doc_princ (bool): Se True, l'allegato viene inserito in posizione 0 (Documento Principale).
+
+            Returns:
+                dict: L'allegato codificato pronto per Titulus.
+        """
+        logger.debug(f"Elaborazione allegato: {nome} (Principale: {is_doc_princ})")
         namespaces = titulus_settings.PROTOCOL_NAMESPACES
         ns1 = namespaces["ns1"]
 
         ext = os.path.splitext(nome)[1]
         if not ext:
-            raise Exception(("'nome' deve essere con l'estensione "
-                             "esempio: .pdf altrimenti errore xml -201!"))
+            error_msg = ("'nome' deve avere l'estensione (es: .pdf) per evitare l'errore xml -201 da Titulus!")
+            logger.error(error_msg)
+            raise Exception(error_msg)
+
         self.assure_connection()
-        content_type = self.client.get_type(f'{ns1}base64Binary')
-        content = content_type(fopen.read())
-        allegato_dict = self._get_allegato_dict()
-        allegato_dict['content'] = content
-        allegato_dict['description'] = descrizione
-        allegato_dict['filename'] = nome
-        # if it's principal document insert in first position
-        if is_doc_princ:
-            self.allegati.insert(0, allegato_dict)
-        else: self.allegati.append(allegato_dict)
-        return allegato_dict
+        try:
+            content_type = self.client.get_type(f'{ns1}base64Binary')
+            content = content_type(fopen.read())
+            allegato_dict = self._get_allegato_dict()
+            allegato_dict['content'] = content
+            allegato_dict['description'] = descrizione
+            allegato_dict['filename'] = nome
+            # if it's principal document insert in first position
+            if is_doc_princ:
+                self.allegati.insert(0, allegato_dict)
+            else: self.allegati.append(allegato_dict)
+            logger.debug(f"Allegato {nome} elaborato correttamente in base64.")
+            return allegato_dict
+        except Exception as e:
+            logger.exception(f"Errore durante l'elaborazione dell'allegato {nome}: {e}")
+            raise
 
     def aggiungi_docPrinc(self, fopen, nome_doc, tipo_doc):
+        """Helper che richiama `aggiungi_allegato` forzando is_doc_princ a True."""
         return self.aggiungi_allegato(fopen=fopen,
                                       nome=nome_doc,
                                       descrizione=tipo_doc,
                                       is_doc_princ=True)
 
     def fascicolaDocumento(self, fascicolo):
+        """Fascicola un documento esistente sfruttando il template fascicolo.jinja2.xml."""
+        logger.info("Richiesta di fascicolazione documento inviata.")
         self.assure_connection()
 
         if self.rpa_username:
+            logger.debug(f"Impostazione impersonificazione WSUser: {self.rpa_username}")
             self.service.setWSUser(
                 user=self.rpa_username,
                 pnumber=self.rpa_code
             )
-
-        response = self.service.addInFolder(fascicolo)
-        if response:
-            return True
+        try:
+            response = self.service.addInFolder(fascicolo)
+            if response:
+                logger.info("Fascicolazione avvenuta con successo tramite addInFolder.")
+                return True
             # root = ET.fromstring(response._value_1)
+        except Exception as e:
+            logger.exception(f"Errore durante la fascicolazione: {e}")
+            raise
 
     def cercaDocumento(self, key, value):
         self.assure_connection()
         query = f'[{key}]={value}'
+        logger.debug(f"Esecuzione ricerca in Titulus. Query: {query}")
         return self.service.search(query=query,
                                    orderby=xsd.SkipValue,
                                    params=xsd.SkipValue)
