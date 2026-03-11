@@ -1,9 +1,9 @@
 import logging
+import os
 from io import BytesIO
+from reportlab.pdfgen import canvas
+from pathlib import Path
 
-import magic
-from django.conf import settings as django_settings
-from django.http import HttpResponse
 from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
 
@@ -13,6 +13,38 @@ from . import conf as titulus_settings
 
 logger = logging.getLogger(__name__)
 
+
+def _assicura_formato_pdf(contenuto):
+    """
+    Verifica se il contenuto è un PDF. Se è una semplice stringa/testo,
+    lo converte in un PDF valido in memoria.
+    """
+    # Se arriva come stringa, la codifichiamo in byte
+    if isinstance(contenuto, str):
+        contenuto = contenuto.encode('utf-8')
+
+    # Controlliamo i "magic bytes": un PDF inizia sempre con %PDF
+    if contenuto.startswith(b'%PDF'):
+        return contenuto  # È già un PDF valido, non facciamo nulla!
+
+    # Se non è un PDF, creiamo un PDF al volo con il testo ricevuto
+    testo_str = contenuto.decode('utf-8', errors='ignore')
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer)
+    testo_pdf = p.beginText()
+    testo_pdf.setTextOrigin(50, 800)  # Margini x, y
+    testo_pdf.setFont("Helvetica", 12)
+
+    # Scriviamo riga per riga per supportare gli "a capo"
+    for linea in testo_str.split('\n'):
+        testo_pdf.textLine(linea)
+
+    p.drawText(testo_pdf)
+    p.showPage()
+    p.save()
+
+    return buffer.getvalue()
 
 def _esegui_flusso_protocollo(
         tipo,
@@ -29,7 +61,10 @@ def _esegui_flusso_protocollo(
         principal_file,
         attachments_folder,
         attachments,
-        test
+        test,
+        label_notifica,
+        method_notifica,
+        voce_indice=None
 ):
     """
     Funzione core fattorizzata per gestire l'intero flusso di comunicazione con Titulus
@@ -66,8 +101,8 @@ def _esegui_flusso_protocollo(
             with open(titulus_settings.PROTOCOL_TEST_XML, 'r', encoding=titulus_settings.PROT_DOC_ENCODING) as f:
                 prot_template = f.read()
 
-        principal_file = b"Test"
-        principal_file_name = "test name"
+        principal_file = principal_file or b"Test"
+        principal_file_name = principal_file_name or "test name"
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT_TEST',
                                         None) if invia_notifica else None
 
@@ -113,6 +148,9 @@ def _esegui_flusso_protocollo(
         num_allegati=1 + len(attachments),
         fascicolo_num=prot_fascicolo_num,
         fascicolo_anno=prot_fascicolo_anno,
+        voce_indice=voce_indice,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica,
         **rif_esterno_data
     )
 
@@ -131,10 +169,49 @@ def _esegui_flusso_protocollo(
     )
 
     logger.info(f"Protocollazione richiesta {subject}")
-    docPrinc = BytesIO()
-    docPrinc.write(principal_file)
-    docPrinc.seek(0)
+    # --- GESTIONE FLESSIBILE DEL FILE PRINCIPALE ---
+    if hasattr(principal_file, 'read'):
+        # CASO 1: Oggetto "file-like"
+        # (es. request.FILES['doc'], un campo FileField di Django, o un file aperto)
+        docPrinc = principal_file
+        if hasattr(docPrinc, 'seek'):
+            docPrinc.seek(0)
 
+    elif isinstance(principal_file, (str, Path)):
+        # CASO 2: Percorso del file (Stringa classica o oggetto pathlib.Path)
+        file_path = str(principal_file)
+        if os.path.isfile(file_path):
+            with open(file_path, 'rb') as f:
+                docPrinc = BytesIO(f.read())
+        else:
+            raise FileNotFoundError(f"Il file specificato non esiste: {file_path}")
+
+    elif isinstance(principal_file, bytes):
+        # CASO 3: Byte crudi generati al volo
+        docPrinc = BytesIO(principal_file)
+
+    else:
+        raise ValueError(
+            "Il parametro 'principal_file' deve essere un oggetto file (es. Django File/UploadedFile), "
+            "un percorso valido (str o Path) o dei byte crudi."
+        )
+    # -----------------------------------------------
+    # --- TRASFORMAZIONE AUTOMATICA IN PDF ---
+    # Leggiamo i primi 4 byte per verificare la firma binaria del file
+    magic_bytes = docPrinc.read(4)
+    docPrinc.seek(0)  # Riportiamo il puntatore all'inizio
+
+    if magic_bytes != b'%PDF':
+        # Non è un PDF (es. è b"Test" o un file di testo semplice).
+        # Leggiamo tutto il contenuto grezzo...
+        contenuto_grezzo = docPrinc.read()
+
+        # ...lo trasformiamo in un VERO file PDF...
+        pdf_bytes = _assicura_formato_pdf(contenuto_grezzo)
+
+        # ...e rimpiazziamo docPrinc con il nuovo PDF in memoria!
+        docPrinc = BytesIO(pdf_bytes)
+    # -----------------------------------------------
     wsclient.aggiungi_docPrinc(
         fopen=docPrinc, nome_doc=f"{principal_file_name}.pdf", tipo_doc=f"{principal_file_name}.pdf"
     )
@@ -142,18 +219,17 @@ def _esegui_flusso_protocollo(
     # attachments
     if attachments:
         for v in attachments:
-            file_path = "{}/{}/{}".format(django_settings.MEDIA_ROOT, attachments_folder, v)
-            mime = magic.Magic(mime=True)
-            content_type = mime.from_file(file_path)
+            # 1. Costruiamo il percorso in modo sicuro e cross-platform
+            file_path = os.path.join(attachments_folder, v)
+
+            # 2. Apriamo il file e lo passiamo direttamente al client
             with open(file_path, "rb") as f:
-                attachment_response = HttpResponse(f.read(), content_type=content_type)
-                attachment_response["Content-Disposition"] = "inline; filename=" + v
-            allegato = BytesIO()
-            allegato.write(attachment_response.content)
-            allegato.seek(0)
-            wsclient.aggiungi_allegato(
-                nome=v, descrizione=subject, fopen=allegato, test=test
-            )
+                wsclient.aggiungi_allegato(
+                    nome=v,
+                    descrizione=subject,
+                    fopen=f,
+                    test=test
+                )
 
     # Esecuzione dell'azione specifica
     if azione == 'protocolla':
@@ -222,7 +298,7 @@ def protocolla_arrivo(
         attachments_folder=None,
         attachments=[],
         test=False,
-):
+        label_notifica=None, method_notifica=None):
     """
     Protocolla un documento in arrivo.
     """
@@ -250,14 +326,16 @@ def protocolla_arrivo(
         principal_file=principal_file,
         attachments_folder=attachments_folder,
         attachments=attachments,
-        test=test
+        test=test,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica
     )
 
 
 def avvia_iter_arrivo(
         user,
         subject,
-        iter=None,
+        voce_indice=None,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
         prot_template=None,
@@ -267,12 +345,13 @@ def avvia_iter_arrivo(
         attachments=[],
         test=False,
         invia_notifica=False,
-):
+        label_notifica='Invio notifica fine ITER',
+        method_notifica='POST'):
     """
     Salva la bozza in entrata e attiva l'iter.
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and iter
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
@@ -298,7 +377,10 @@ def avvia_iter_arrivo(
         principal_file=principal_file,
         attachments_folder=attachments_folder,
         attachments=attachments,
-        test=test
+        test=test,
+        voce_indice=voce_indice,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica
     )
 
 
@@ -316,7 +398,7 @@ def protocolla_partenza(
         attachments_folder=None,
         attachments=[],
         test=False
-):
+        , label_notifica=None, method_notifica=None):
     """
     Protocolla un documento in partenza.
     """
@@ -344,13 +426,15 @@ def protocolla_partenza(
         principal_file=principal_file,
         attachments_folder=attachments_folder,
         attachments=attachments,
-        test=test
+        test=test, label_notifica=label_notifica,
+        method_notifica=method_notifica
+
     )
 
 
 def avvia_iter_partenza(
         subject,
-        iter=None,
+        voce_indice=None,
         credential_ws_protocollo=None,
         configuration_ws_protocollo=None,
         nome_rif_esterno=None,
@@ -364,12 +448,14 @@ def avvia_iter_partenza(
         attachments=[],
         test=False,
         invia_notifica=False,
+        label_notifica='Invio notifica fine ITER',
+        method_notifica='POST'
 ):
     """
     Salva la bozza in uscita e attiva l'iter.
     Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
     """
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno and iter
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
@@ -395,5 +481,8 @@ def avvia_iter_partenza(
         principal_file=principal_file,
         attachments_folder=attachments_folder,
         attachments=attachments,
-        test=test
+        test=test,
+        voce_indice=voce_indice,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica
     )

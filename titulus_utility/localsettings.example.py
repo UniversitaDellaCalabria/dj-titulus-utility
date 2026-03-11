@@ -125,7 +125,15 @@ else:
 # Flag per inviare effettivamente email durante il test
 # TITULUS_PROTOCOL_SEND_MAIL_DEBUG = False
 
+# Testare l'endpoint di avvenuta protocollazione : url pubblicamente accessibile che restituisce 200 ok
+# TITULUS_TEST_NOTIFICATION_ENDPOINT='https://tuo.dominio.it/webhook'
 
+# Utente usato come rif esterno /interno per i test (dipendente)
+# TITULUS_FIRST_NAME_USER_TEST='Mario'
+# TITULUS_LAST_NAME_USER_TEST='Rossi'
+# TITULUS_FISCAL_CODE_USER_TEST='RSSMRA...'
+# TITULUS_EMAIL_USER_TEST='mario.rossi@tuaistituzione.it'
+# TITULUS_ATTACHMENT_FOLDER_TEST=a folder in mediaroot
 # ---------------------------------------------------------
 # TEMPLATE JINJA2 PERSONALIZZATI (Opzionali)
 # ---------------------------------------------------------

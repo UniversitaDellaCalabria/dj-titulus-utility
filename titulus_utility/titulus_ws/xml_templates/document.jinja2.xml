@@ -36,7 +36,7 @@
     {% if invia_notifica_protocollazione and endpoint_notifica %}
         <extra>
             <notifiche>
-                <notifica type="REST" event="PROTOCOLLAZIONE" label="Notifica protocollazione fine iter" method="POST"
+                <notifica type="REST" event="PROTOCOLLAZIONE" label="{{ label_notifica }}" method="{{ method_notifica }}"
                           url="{{ endpoint_notifica }}" includeNRecord="true" done="NO"/>
             </notifiche>
         </extra>
