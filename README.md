@@ -7,7 +7,7 @@ Una reusable app per Django che fornisce strumenti, utility e template XML per l
 Attualmente l'app è in fase **Beta**. Puoi installarla direttamente dal repository GitHub tramite `pip`:
 
 ```bash
-pip install git+https://github.com/ /dj-titulus-utility.git@v0.1.0-beta.1
+pip install git+https://github.com/UniversitaDellaCalabria/dj-titulus-utility.git@v0.1.0-beta.1
 ```
 
 ## ⚙️ Configurazione Base
@@ -160,5 +160,5 @@ Per contribuire allo sviluppo dell'app:
 2. Crea un ambiente virtuale e installa le dipendenze.
 3. Lancia i test Django (assicurati di aver configurato il file `localsettings.py` con le credenziali):
    ```bash
-   python manage.py test titulus_utility
+   python manage.py test titulus_utility.tests
    ```
