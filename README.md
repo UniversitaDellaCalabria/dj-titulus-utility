@@ -160,5 +160,5 @@ Per contribuire allo sviluppo dell'app:
 2. Crea un ambiente virtuale e installa le dipendenze.
 3. Lancia i test Django (assicurati di aver configurato il file `localsettings.py` con le credenziali):
    ```bash
-   python manage.py test titulus_utility
+   python manage.py test titulus_utility.tests
    ```
