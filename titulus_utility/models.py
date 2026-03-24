@@ -206,3 +206,6 @@ class ConfigurationWSProtocollo(TimeStampedModel):
         return conf if conf else False
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.linked_model_class, self.linked_model_pk)
+
+class VoceIndice(models.Model):
+    voce_indice = models.CharField(max_length=255)
