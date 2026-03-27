@@ -85,7 +85,7 @@ class CredentialWSProtocollo(models.Model):
         return conf if conf else False
 
     def __str__(self):
-        return "{} - {} ({})".format(self.name, self.linked_model_class, self.linked_model_pk)
+        return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
 
 class TimeStampedModel(models.Model):
@@ -205,7 +205,7 @@ class ConfigurationWSProtocollo(TimeStampedModel):
         ).first()
         return conf if conf else False
     def __str__(self):
-        return "{} - {} ({})".format(self.name, self.linked_model_class, self.linked_model_pk)
+        return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
 class VoceIndice(models.Model):
     voce_indice = models.CharField(max_length=255)
