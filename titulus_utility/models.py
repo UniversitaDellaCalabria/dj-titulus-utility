@@ -13,7 +13,17 @@ if 'makemigrations' in sys.argv or 'migrate' in sys.argv:  # pragma: no cover
     _protocollo_uo_list = [('', '-')]
 
 
-class CredentialWSProtocollo(models.Model):
+
+
+class TimeStampedModel(models.Model):
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class CredentialWSProtocollo(TimeStampedModel):
     """
         Modello per l'archiviazione delle credenziali di accesso al WS Titulus.
 
@@ -35,8 +45,6 @@ class CredentialWSProtocollo(models.Model):
     the app model-agnostic.
     """
     name = models.CharField(_("Denominazione configurazione"), max_length=255)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=False)
 
     protocollo_username = models.CharField("Username", max_length=255)
@@ -86,14 +94,6 @@ class CredentialWSProtocollo(models.Model):
 
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
-
-
-class TimeStampedModel(models.Model):
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
 
 
 class ConfigurationWSProtocollo(TimeStampedModel):

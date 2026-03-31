@@ -233,8 +233,12 @@ def _esegui_flusso_protocollo(
         # ...e rimpiazziamo docPrinc con il nuovo PDF in memoria!
         docPrinc = BytesIO(pdf_bytes)
     # -----------------------------------------------
+    if not principal_file_name.lower().endswith('.pdf'):
+        full_principal_name = f"{principal_file_name}.pdf"
+    else:
+        full_principal_name = principal_file_name
     wsclient.aggiungi_docPrinc(
-        fopen=docPrinc, nome_doc=f"{principal_file_name}.pdf", tipo_doc=f"{principal_file_name}.pdf"
+        fopen=docPrinc, nome_doc=full_principal_name, tipo_doc=full_principal_name
     )
 
     # attachments
