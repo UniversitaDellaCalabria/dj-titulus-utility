@@ -18,5 +18,6 @@ setup(
         "python-magic>=0.4.27",
         "requests>=2.32.0",
         "zeep>=4.3.0",
+        "reportlab==4.4.10",
     ],
 )
