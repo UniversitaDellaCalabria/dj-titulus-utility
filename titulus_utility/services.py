@@ -466,7 +466,7 @@ def protocolla_partenza(
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
     logger.debug(f"credential {credential_ws_protocollo}, configuration {configuration_ws_protocollo}, cognome_rif_esterno {cognome_rif_esterno}, cod_fis_rif_esterno {cod_fis_rif_esterno}")
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno
     if not test and not valid_conf:
 
         error_msg = _("Missing proper titulus credential or XML configurations")
@@ -533,7 +533,7 @@ def avvia_iter_partenza(
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
 
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno and voce_indice
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and voce_indice
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
