@@ -12,8 +12,8 @@ APP_BASE_DIR = Path(__file__).resolve().parent
 TITULUS_WS_DIR = APP_BASE_DIR / 'titulus_ws'
 XML_TEMPLATES_DIR = TITULUS_WS_DIR / 'xml_templates'
 
-TEMPLATE_DOCUMENT_JINJAXML =  getattr(settings, 'TITULUS_TEMPLATE_DOCUMENT_JINJAXML', XML_TEMPLATES_DIR / 'document.jinja2.xml')
-FASCICOLO_PATH = getattr(settings, 'TITULUS_FASCICOLO_PATH', XML_TEMPLATES_DIR / 'fascicolo.jinja2.xml')
+TEMPLATE_DOCUMENT_JINJAXML = getattr(settings, 'TITULUS_TEMPLATE_DOCUMENT_JINJAXML', None) or (XML_TEMPLATES_DIR / 'document.jinja2.xml')
+FASCICOLO_PATH = getattr(settings, 'TITULUS_FASCICOLO_PATH', None) or (XML_TEMPLATES_DIR / 'fascicolo.jinja2.xml')
 
 FOLDER_FILE_PATH=getattr(settings,'TITULUS_DOCUMENT_FOLDER',None)
 if not FOLDER_FILE_PATH:
