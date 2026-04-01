@@ -465,9 +465,13 @@ def protocolla_partenza(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
-
+    logger.debug(f"credential {credential_ws_protocollo}, configuration {configuration_ws_protocollo}, cognome_rif_esterno {cognome_rif_esterno}, cod_fis_rif_esterno {cod_fis_rif_esterno}")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and cognome_rif_esterno and cod_fis_rif_esterno
+    if not test and not valid_conf:
 
+        error_msg = _("Missing proper titulus credential or XML configurations")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     rif_esterno_data = {
         'nome_rif_esterno': nome_rif_esterno,
         'cognome_rif_esterno': cognome_rif_esterno,
