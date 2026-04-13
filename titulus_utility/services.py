@@ -567,17 +567,15 @@ def avvia_iter_partenza(
 
 
 def recupera_numero_protocollo(
-        credential_ws_protocollo,
-        nrecord,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        nrecord=None,
         test=False,
 ):
-    """
-    Salva il documento "in partenza" in stato "bozza" e avvia il relativo Iter
-    passando il parametro `voce_indice` (se mappato nei settings).
-    Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
-    """
-    logger.debug("Wrapper recupera_numero_protocollo invocato.")
 
+    logger.debug("Wrapper recupera_numero_protocollo invocato.")
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     valid_conf = credential_ws_protocollo and nrecord
 
     logger.info(f"Avvio recupero info per il record {nrecord}")
