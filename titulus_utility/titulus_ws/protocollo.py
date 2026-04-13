@@ -3,26 +3,133 @@ import os
 import xml.etree.ElementTree as ET
 
 from jinja2 import Template
-
 from requests import Session
 from requests.auth import HTTPBasicAuth
-
 from zeep import Client, Settings, xsd
 from zeep.transports import Transport
+
 from titulus_utility import conf as titulus_settings
 
 logger = logging.getLogger(__name__)
 
 
-class WSTitulusClient(object):
+class WSTitulusConnector(object):
     """
-    Client per il Web Service Titulus.
+    Gestisce esclusivamente la connessione di basso livello al Web Service
+    SOAP di Titulus tramite Zeep.
+    """
 
-    Gestisce la comunicazione SOAP di basso livello tramite Zeep.
-    Viene istanziato da `services.py` ricevendo in ingresso il dizionario
-    generato da `utils.get_protocol_dict()`. Si occupa di renderizzare il
-    template JinjaXML, gestire l'upload degli allegati (AttachmentBean) e
-    inviare la richiesta di protocollazione/salvataggio (SaveDocument).
+    def __init__(self, wsdl_url, username, password):
+        self.wsdl_url = wsdl_url
+        self.username = username
+        self.password = password
+
+        # Inizializzazione variabili zeep
+        self.client = None
+        self.service = None
+
+    def connect(self):
+        """Stabilisce la connessione con il Web Service SOAP tramite Zeep."""
+        logger.debug(f"Tentativo di connessione al WSDL: {self.wsdl_url}")
+        try:
+            session = Session()
+            settings_zeep = Settings(strict=False, xml_huge_tree=True)
+            session.auth = HTTPBasicAuth(self.username, self.password)
+            transport = Transport(session=session)
+
+            self.client = Client(self.wsdl_url,
+                                 transport=transport,
+                                 settings=settings_zeep)
+            self.service = self.client.bind('Titulus4Service', 'Titulus4')
+            return self.client
+        except Exception as e:
+            logger.exception(f"Errore durante la connessione al Web Service: {e}")
+            raise
+
+    def is_connected(self):
+        """Ritorna True se il client Zeep è stato inizializzato."""
+        return True if self.client else False
+
+    def assure_connection(self):
+        """Verifica lo stato della connessione e la avvia se assente."""
+        if not self.is_connected():
+            self.connect()
+
+
+class WSTitulusQueryClient(WSTitulusConnector):
+    """
+    Client leggero per le sole operazioni di lettura (Query, Ricerca).
+    """
+
+    def __init__(self,
+                 wsdl_url,
+                 username,
+                 password):
+        # Inizializza la classe base (WSTitulusConnector)
+        super().__init__(wsdl_url=wsdl_url, username=username, password=password)
+
+        # Inizializziamo questi attributi poiché get_record_infos va a popolarli
+        self.numero = None
+        self.nrecord = None
+
+    def get_record_infos(self, nrecord):
+        """
+        Recupera le informazioni di un record Titulus (Metodo Core).
+
+        Args:
+            nrecord (string): l'identificativo del record registrato in titulus
+
+        Returns:
+            bool: True se la chiamata va a buon fine, assegnando a `self.numero` o `self.nrecord` la risposta.
+        """
+        logger.info(f"Richiesta info per il record {nrecord}")
+        self.assure_connection()
+
+        try:
+            logger.debug(f"Invocazione servizio getRecordInfos")
+            record_info = self.service.getRecordInfos(id=nrecord)
+
+            if record_info:
+                logger.debug(f"Risposta raw da getRecordInfos: {record_info._value_1}")
+                root = ET.fromstring(record_info._value_1)
+
+                doc_node = root.find('.//doc')
+
+                if doc_node is not None:
+                    attribs = doc_node.attrib
+
+                    if 'num_prot' in attribs:
+                        self.numero = attribs['num_prot']
+                        logger.info(f"Record recuperato. Assegnato Num Prot: {self.numero}")
+
+                    if 'nrecord' in attribs:
+                        self.nrecord = attribs['nrecord']
+                        logger.info(f"Record recuperato. Assegnato Nrecord: {self.nrecord}")
+                else:
+                    logger.error("Attenzione: Nodo <doc> non trovato nella risposta XML!")
+
+                return True
+        except Exception as e:
+            logger.exception(f"Errore fatale durante _get_record_infos: {e}")
+            raise
+
+    def cercaDocumento(self, key, value):
+        """Ricerca un documento in Titulus in base a chiave e valore."""
+        self.assure_connection()
+        query = f'[{key}]={value}'
+        logger.debug(f"Esecuzione ricerca in Titulus. Query: {query}")
+        return self.service.search(query=query,
+                                   orderby=xsd.SkipValue,
+                                   params=xsd.SkipValue)
+
+
+class WSTitulusClient(WSTitulusQueryClient):
+    """
+    Client per la logica di business del Web Service Titulus.
+
+    Eredita da WSTitulusQueryClient per la gestione della connessione SOAP e delle ricerche.
+    Si occupa di renderizzare il template JinjaXML, gestire l'upload degli
+    allegati (AttachmentBean) e inviare le richieste operative (SaveDocument, ecc).
     """
 
     def __init__(self,
@@ -32,9 +139,8 @@ class WSTitulusClient(object):
                  template_xml_flusso=None,
                  **kwargs):
 
-        self.username = username
-        self.password = password
-        self.wsdl_url = wsdl_url
+        # Inizializza la classe base (WSTitulusQueryClient -> WSTitulusConnector)
+        super().__init__(wsdl_url=wsdl_url, username=username, password=password)
 
         if template_xml_flusso is None:
             logger.debug("Caricamento del template XML di default per Titulus.")
@@ -49,58 +155,26 @@ class WSTitulusClient(object):
         logger.info(f"Inizializzazione WSTitulusClient completata per l'oggetto: {kwargs.get('oggetto', 'N/D')}")
         logger.debug(f"XML Renderizzato (Doc): {self.doc}")
 
-        # RPA username and code
-        # (per impersonificare RPA in fascicolazione!)
+        # RPA username and code (per impersonificare RPA in fascicolazione)
         self.rpa_username = kwargs.get('destinatario_username')
         self.rpa_code = kwargs.get('destinatario_code', None)
 
         # send email
         self.send_email = kwargs.get('send_email', False)
 
-        # zeep
-        self.client = None
-        self.service = None
-
-        # numero viene popolato a seguito di una protocollazione
+        # Gestione numero/anno da kwargs (sovrascrive eventuali None del super().__init__)
         if kwargs.get('numero') and kwargs.get('anno'):
             self.numero = kwargs.get('numero')
             self.anno = kwargs.get('anno')
         else:
-            self.numero = None
             self.anno = None
-            # numero viene popolato a seguito di una protocollazione
+
+        # Gestione nrecord da kwargs
         if kwargs.get('nrecord'):
             self.nrecord = kwargs.get('nrecord')
-        else:
-            self.nrecord = None
+
         # attachments
         self.allegati = []
-
-    def connect(self):
-        """Stabilisce la connessione con il Web Service SOAP tramite Zeep."""
-        logger.debug(f"Tentativo di connessione al WSDL: {self.wsdl_url}")
-        try:
-            session = Session()
-            settings_zeep = Settings(strict=False, xml_huge_tree=True)
-            session.auth = HTTPBasicAuth(self.username,
-                                         self.password)
-            transport = Transport(session=session)
-            self.client = Client(self.wsdl_url,
-                                 transport=transport,
-                                 settings=settings_zeep)
-            self.service = self.client.bind('Titulus4Service', 'Titulus4')
-            return self.client
-        except Exception as e:
-            logger.exception(f"Errore durante la connessione al Web Service: {e}")
-            raise
-
-    def is_connected(self):
-        return True if self.client else False
-
-    def assure_connection(self):
-        """Verifica lo stato della connessione e la avvia se assente."""
-        if not self.is_connected():
-            self.connect()
 
     def _esegui_salvataggio(self, is_bozza=False, force=False):
         """
@@ -152,7 +226,6 @@ class WSTitulusClient(object):
                 root = ET.fromstring(saveDocumentResponse._value_1)
                 attribs = root[1][0].attrib
 
-                # Parsing dinamico: popoliamo in modo sicuro le variabili di classe
                 if 'num_prot' in attribs:
                     self.numero = attribs['num_prot']
                     logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.numero}")
@@ -178,8 +251,6 @@ class WSTitulusClient(object):
         return {'content': None,
                 'description': None,
                 'filename': None}
-        # force PDF
-        # 'mimeType': "application/pdf"}
 
     def aggiungi_allegato(self,
                           fopen,
@@ -217,10 +288,12 @@ class WSTitulusClient(object):
             allegato_dict['content'] = content
             allegato_dict['description'] = descrizione
             allegato_dict['filename'] = nome
-            # if it's principal document insert in first position
+
             if is_doc_princ:
                 self.allegati.insert(0, allegato_dict)
-            else: self.allegati.append(allegato_dict)
+            else:
+                self.allegati.append(allegato_dict)
+
             logger.debug(f"Allegato {nome} elaborato correttamente in base64.")
             return allegato_dict
         except Exception as e:
@@ -250,19 +323,6 @@ class WSTitulusClient(object):
             if response:
                 logger.info("Fascicolazione avvenuta con successo tramite addInFolder.")
                 return True
-            # root = ET.fromstring(response._value_1)
         except Exception as e:
             logger.exception(f"Errore durante la fascicolazione: {e}")
             raise
-
-    def cercaDocumento(self, key, value):
-        self.assure_connection()
-        query = f'[{key}]={value}'
-        logger.debug(f"Esecuzione ricerca in Titulus. Query: {query}")
-        return self.service.search(query=query,
-                                   orderby=xsd.SkipValue,
-                                   params=xsd.SkipValue)
-
-
-class Protocollo(WSTitulusClient):
-    pass

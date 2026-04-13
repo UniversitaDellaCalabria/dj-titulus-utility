@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from titulus_utility import services
 from titulus_utility import conf as titulus_settings
-from titulus_utility.titulus_ws.protocollo import Protocollo
+from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusConnector
 
 
 class TitulusIntegrationTests(TestCase):
@@ -32,11 +32,10 @@ class TitulusIntegrationTests(TestCase):
         Testa la connessione base a Zeep usando le credenziali di test.
         Se questo fallisce, l'URL o le credenziali nel localsettings sono errate.
         """
-        client = Protocollo(
+        client = WSTitulusConnector(
             wsdl_url=titulus_settings.PROTOCOL_TEST_URL,
             username=titulus_settings.PROTOCOL_TEST_LOGIN,
             password=titulus_settings.PROTOCOL_TEST_PASSW,
-            template_xml_flusso="<doc><test/></doc>"  # Un template fittizio per inizializzare
         )
         # Tenta di connettersi e scaricare il WSDL
         client.assure_connection()
@@ -259,3 +258,12 @@ class TitulusIntegrationTests(TestCase):
         )
         self.assertIn("nrecord", risultato)
         self.assertIsNotNone(risultato["nrecord"])
+
+    def test_09_recupera_numero_protocollo(self):
+
+        risultato = services.recupera_numero_protocollo(
+            credential_ws_protocollo=self.mock_cred,
+            nrecord="000063688-UCALPRG-d37b386c-c10a-4ba3-8e27-e7020d995b47",
+            test=True,
+        )
+        self.assertIsNotNone(risultato)

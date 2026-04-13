@@ -7,7 +7,7 @@ from pathlib import Path
 from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
 
-from titulus_utility.titulus_ws.protocollo import Protocollo
+from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient
 from titulus_utility.titulus_ws.utils import get_protocol_dict
 from . import conf as titulus_settings
 from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
@@ -180,7 +180,7 @@ def _esegui_flusso_protocollo(
 
     protocol_data = get_protocol_dict(**protocol_kwargs)
     logger.debug("Inizializzazione client Titulus (da protocollo.py)")
-    wsclient = Protocollo(
+    wsclient = WSTitulusClient(
         wsdl_url=prot_url,
         username=prot_login,
         password=prot_passw,
@@ -564,3 +564,45 @@ def avvia_iter_partenza(
         label_notifica=label_notifica,
         method_notifica=method_notifica
     )
+
+
+def recupera_numero_protocollo(
+        credential_ws_protocollo,
+        nrecord,
+        test=False,
+):
+    """
+    Salva il documento "in partenza" in stato "bozza" e avvia il relativo Iter
+    passando il parametro `voce_indice` (se mappato nei settings).
+    Se invia_notifica=True, inserisce anche l'endpoint di notifica nel payload.
+    """
+    logger.debug("Wrapper recupera_numero_protocollo invocato.")
+
+    valid_conf = credential_ws_protocollo and nrecord
+
+    logger.info(f"Avvio recupero info per il record {nrecord}")
+    if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Missing XML configuration or notification endpoint for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    wsclient = WSTitulusQueryClient(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+    )
+    wsclient.get_record_infos(nrecord=nrecord)
+    assert getattr(wsclient, 'numero', None)
+    return wsclient.numero
+
+
