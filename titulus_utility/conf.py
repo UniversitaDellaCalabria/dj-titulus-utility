@@ -25,6 +25,7 @@ if not FOLDER_FILE_PATH:
 PROT_DOC_ENCODING = getattr(settings, 'TITULUS_PROT_DOC_ENCODING', 'utf-8')
 FASCICOLAZIONE_SEPARATA = getattr(settings, 'TITULUS_FASCICOLAZIONE_SEPARATA', True) # Da vecchio settings era True
 NOTIFICATION_ENDPOINT = getattr(settings, 'TITULUS_NOTIFICATION_ENDPOINT', None)
+NOTIFICATION_AUTH = getattr(settings, 'TITULUS_NOTIFICATION_AUTH', None)
 # =========================================================
 # AUTORE
 # =========================================================
@@ -95,6 +96,7 @@ PROTOCOL_TEST_FASCICOLO_ANNO = getattr(settings, 'TITULUS_PROTOCOL_TEST_FASCICOL
 PROTOCOL_SEND_MAIL_DEBUG = getattr(settings, 'TITULUS_PROTOCOL_SEND_MAIL_DEBUG', False)
 PROTOCOL_TEST_XML = getattr(settings, 'TITULUS_PROTOCOL_TEST_XML', None) # Se serve un XML diverso per il test
 NOTIFICATION_ENDPOINT_TEST = getattr(settings, 'TITULUS_TEST_NOTIFICATION_ENDPOINT', None) # Se serve un XML diverso per il test
+NOTIFICATION_AUTH_TEST = getattr(settings, 'TITULUS_TEST_NOTIFICATION_AUTH', None) # Se serve un XML diverso per il test
 FIRST_NAME_USER_TEST= getattr(settings, 'TITULUS_FIRST_NAME_USER_TEST', None)
 LAST_NAME_USER_TEST= getattr(settings, 'TITULUS_LAST_NAME_USER_TEST', None)
 FISCAL_CODE_USER_TEST= getattr(settings, 'TITULUS_FISCAL_CODE_USER_TEST', None)

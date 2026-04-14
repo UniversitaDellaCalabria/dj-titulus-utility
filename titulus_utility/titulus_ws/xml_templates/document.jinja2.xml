@@ -36,8 +36,12 @@
     {% if invia_notifica_protocollazione and endpoint_notifica %}
         <extra>
             <notifiche>
-                <notifica type="REST" event="PROTOCOLLAZIONE" label="{{ label_notifica }}" method="{{ method_notifica }}"
-                          url="{{ endpoint_notifica }}" includeNRecord="true" done="NO"/>
+                <notifica type="REST" event="PROTOCOLLAZIONE" label="{{ label_notifica }}"
+                          method="{{ method_notifica }}"
+                          url="{{ endpoint_notifica }}" includeNRecord="true" done="NO"
+                        {% if auth_notifica %}
+                          auth="{{ auth_notifica }}"
+                        {% endif %}/>
             </notifiche>
         </extra>
     {% endif %}

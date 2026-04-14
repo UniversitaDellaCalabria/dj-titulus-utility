@@ -117,6 +117,10 @@ else:
 # TITULUS_PROTOCOL_TEST_UO = 'UO_TEST'
 # TITULUS_PROTOCOL_TEST_UO_RPA = 'RPA_TEST'
 
+
+#TITULUS_NOTIFICATION_ENDPOINT='https://tuo.dominio.it/webhook'
+#TITULUS_NOTIFICATION_AUTH='your_string_auth_prod'
+
 # Classificazione e fascicolazione di test
 # TITULUS_PROTOCOL_TEST_TITOLARIO = 'I/1'
 # TITULUS_PROTOCOL_TEST_FASCICOLO = '2025-I/1.1'
@@ -126,7 +130,8 @@ else:
 # TITULUS_PROTOCOL_SEND_MAIL_DEBUG = False
 
 # Testare l'endpoint di avvenuta protocollazione : url pubblicamente accessibile che restituisce 200 ok
-# TITULUS_TEST_NOTIFICATION_ENDPOINT='https://tuo.dominio.it/webhook'
+# TITULUS_TEST_NOTIFICATION_ENDPOINT='https://preprod.tuo.dominio.it/webhook'
+# TITULUS_TEST_NOTIFICATION_AUTH='your_string_auth_test'
 
 # Utente usato come rif esterno /interno per i test (dipendente)
 # TITULUS_FIRST_NAME_USER_TEST='Mario'

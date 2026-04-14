@@ -68,6 +68,7 @@ def get_protocol_dict(**kwargs):
         # --- Notifiche ---
         'invia_notifica_protocollazione': kwargs.get('invia_notifica_protocollazione', False),
         'endpoint_notifica': kwargs.get('endpoint_notifica'),
+        'auth_notifica': kwargs.get('auth_notifica',None),
         'label_notifica': kwargs.get('label_notifica','Invio notifica fine ITER'),
         'method_notifica': kwargs.get('method_notifica','POST'),
     }

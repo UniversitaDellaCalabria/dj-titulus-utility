@@ -121,6 +121,9 @@ def _esegui_flusso_protocollo(
         principal_file_name = principal_file_name or "test name"
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT_TEST',
                                         None) if invia_notifica else None
+        notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH_TEST', None) if invia_notifica else None
+
+
 
     elif not test and valid_conf:
         logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
@@ -139,6 +142,7 @@ def _esegui_flusso_protocollo(
         prot_fascicolo_num = configuration_ws_protocollo.protocollo_fascicolo_numero
         prot_fascicolo_anno = configuration_ws_protocollo.protocollo_fascicolo_anno
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT', None) if invia_notifica else None
+        notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH', None) if invia_notifica else None
 
     else:
         error_msg = _("Missing XML configuration or notification endpoint for production")
@@ -171,6 +175,7 @@ def _esegui_flusso_protocollo(
         voce_indice=voce_indice,
         label_notifica=label_notifica,
         method_notifica=method_notifica,
+        auth_notifica=notification_auth,
         **rif_esterno_data
     )
 
