@@ -122,7 +122,7 @@ def _esegui_flusso_protocollo(
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT_TEST',
                                         None) if invia_notifica else None
         notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH_TEST', None) if invia_notifica else None
-
+        lista_cc=None
 
 
     elif not test and valid_conf:
@@ -144,6 +144,15 @@ def _esegui_flusso_protocollo(
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT', None) if invia_notifica else None
         notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH', None) if invia_notifica else None
 
+        cc_queryset = configuration_ws_protocollo.cc_list.all()
+        lista_cc = []
+        for cc in cc_queryset:
+            lista_cc.append({
+                'nome_persona': cc.protocollo_persona,
+                'cod_persona': cc.protocollo_persona_matricola,
+                'nome_uff': dict(titulus_settings.UO_DICT).get(cc.protocollo_uo, cc.protocollo_uo),
+                'cod_uff': cc.protocollo_uo
+            })
     else:
         error_msg = _("Missing XML configuration or notification endpoint for production")
         logger.error(error_msg)
@@ -172,6 +181,7 @@ def _esegui_flusso_protocollo(
         num_allegati=1 + len(attachments),
         fascicolo_num=prot_fascicolo_num,
         fascicolo_anno=prot_fascicolo_anno,
+        rif_interni_cc=lista_cc,
         voce_indice=voce_indice,
         label_notifica=label_notifica,
         method_notifica=method_notifica,

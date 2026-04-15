@@ -1,18 +1,17 @@
 import sys
 
-from . import conf as titulus_settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+from . import conf as titulus_settings
 
 _protocollo_titolario_list = titulus_settings.TITOLARIO_DICT
 _protocollo_uo_list = titulus_settings.UO_DICT
 if 'makemigrations' in sys.argv or 'migrate' in sys.argv:  # pragma: no cover
     _protocollo_titolario_list = [('', '-')]
     _protocollo_uo_list = [('', '-')]
-
-
 
 
 class TimeStampedModel(models.Model):
@@ -94,6 +93,7 @@ class CredentialWSProtocollo(TimeStampedModel):
 
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
+
 
 
 class ConfigurationWSProtocollo(TimeStampedModel):
@@ -204,8 +204,41 @@ class ConfigurationWSProtocollo(TimeStampedModel):
             is_active=True
         ).first()
         return conf if conf else False
+
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
+class ConfigurationWSProtocolloCC(TimeStampedModel):
+    """
+    Modello per l'archiviazione dei destinatari in Copia Conoscenza (CC).
+    Legato a 1 a molti con ConfigurationWSProtocollo.
+    """
+    configurazione = models.ForeignKey(
+        ConfigurationWSProtocollo,
+        on_delete=models.CASCADE,
+        related_name="cc_list"
+    )
+    protocollo_uo = models.CharField("UO", max_length=12, choices=_protocollo_uo_list)
+    protocollo_persona = models.CharField(
+        "Nominativo CC", max_length=255, default="", blank=True
+    )
+    protocollo_persona_username = models.CharField(
+        "Username CC", max_length=255, default="", blank=True
+    )
+    protocollo_persona_matricola = models.CharField(
+        "Matricola CC", max_length=255, default="", blank=True
+    )
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = _("Destinatario CC Configurazione WS Protocollo")
+        verbose_name_plural = _("Destinatari CC Configurazioni WS Protocollo")
+
+    def __str__(self):
+        return f"CC: {self.protocollo_uo} - {self.protocollo_persona} ({self.configurazione.name})"
+
 class VoceIndice(models.Model):
     voce_indice = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.voce_indice
