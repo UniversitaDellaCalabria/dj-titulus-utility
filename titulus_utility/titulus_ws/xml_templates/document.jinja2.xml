@@ -19,6 +19,7 @@
                      nome_uff="{{ nome_uff_rif_interno }}"
                      cod_uff="{{ cod_uff_rif_interno }}"
                      {% if cod_persona %}cod_persona="{{ cod_persona }}"{% endif %}/>
+    {% if rif_interni_cc %}
         {% for cc in rif_interni_cc %}
         <rif_interno diritto="CC"
                      cod_uff="{{ cc.cod_uff }}"
@@ -26,6 +27,7 @@
                      {% if cc.nome_uff %}nome_uff="{{ cc.nome_uff }}"{% endif %}
                      {% if cc.cod_persona %}cod_persona="{{ cc.cod_persona }}"{% endif %}/>
         {% endfor %}
+    {% endif %}
     </rif_interni>
     <rif_esterni>
         <rif_esterno codice_fiscale="{{ codice_fiscale_rif_esterno }}">

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from titulus_utility import services
 from titulus_utility import conf as titulus_settings
+from titulus_utility.models import Repertorio
 from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusConnector
 
 
@@ -26,6 +27,7 @@ class TitulusIntegrationTests(TestCase):
         self.test_file_content = b"Contenuto del file di test generato automaticamente."
         self.test_file_name = "documento_test"
         self.attachment_folder = titulus_settings.ATTACHMENT_FOLDER_TEST
+        self.test_repertorio=Repertorio(repertorio="Contratti di Lavoro ARU",code="RCARU")
 
     def test_01_connessione_diretta_client(self):
         """
@@ -205,6 +207,21 @@ class TitulusIntegrationTests(TestCase):
             principal_file=self.test_file_content,
             test=True,
             invia_notifica=False,
+        )
+        self.assertIn("nrecord", risultato)
+        self.assertIsNotNone(risultato["nrecord"])
+
+    def test_07_1_partenza_bozza_iter_senza_allegati(self):
+        risultato = services.avvia_iter_partenza(
+            subject="TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati REPERTORIO",
+            voce_indice="Iter Approva e Firma",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True,
+            invia_notifica=False,
+            repertorio=self.test_repertorio,
         )
         self.assertIn("nrecord", risultato)
         self.assertIsNotNone(risultato["nrecord"])
