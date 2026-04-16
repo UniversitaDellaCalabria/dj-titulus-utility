@@ -1,5 +1,7 @@
 from django.contrib import admin
-from titulus_utility.models import CredentialWSProtocollo, ConfigurationWSProtocollo, VoceIndice,ConfigurationWSProtocolloCC
+from titulus_utility.models import CredentialWSProtocollo, ConfigurationWSProtocollo, VoceIndice, \
+    ConfigurationWSProtocolloCC, Repertorio
+
 
 # admin.site.register(ConfigurationWSProtocollo)
 # admin.site.register(CredentialWSProtocollo)
@@ -71,3 +73,4 @@ class CredentialWSProtocolloAdmin(admin.ModelAdmin):
 
 
 admin.site.register(VoceIndice)
+admin.site.register(Repertorio)
