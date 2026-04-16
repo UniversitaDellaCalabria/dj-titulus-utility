@@ -95,7 +95,6 @@ class CredentialWSProtocollo(TimeStampedModel):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
 
-
 class ConfigurationWSProtocollo(TimeStampedModel):
     """
         Modello per l'archiviazione dei parametri di rete/ufficio (UO, RPA, titolario).
@@ -208,6 +207,7 @@ class ConfigurationWSProtocollo(TimeStampedModel):
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
+
 class ConfigurationWSProtocolloCC(TimeStampedModel):
     """
     Modello per l'archiviazione dei destinatari in Copia Conoscenza (CC).
@@ -237,8 +237,19 @@ class ConfigurationWSProtocolloCC(TimeStampedModel):
     def __str__(self):
         return f"CC: {self.protocollo_uo} - {self.protocollo_persona} ({self.configurazione.name})"
 
+
 class VoceIndice(models.Model):
     voce_indice = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=False)
 
     def __str__(self):
         return self.voce_indice
+
+
+class Repertorio(models.Model):
+    repertorio = models.CharField(max_length=255)
+    code = models.CharField(max_length=15)
+    is_active = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.code}-{self.repertorio}"

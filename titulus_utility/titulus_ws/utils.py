@@ -36,6 +36,7 @@ def get_protocol_dict(**kwargs):
         'bozza': kwargs.get('bozza', 'no'),
         'oggetto': '{:<20}'.format(kwargs['oggetto']),
         'autore': kwargs.get('autore'),
+        'cod_repertorio': kwargs.get('cod_repertorio',None),
         'cod_amm_aoo': kwargs.get('aoo'),
 
         # --- Variabili Opzionali Base ---

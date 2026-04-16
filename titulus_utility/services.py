@@ -1,11 +1,11 @@
 import logging
 import os
 from io import BytesIO
-from reportlab.pdfgen import canvas
 from pathlib import Path
 
 from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
+from reportlab.pdfgen import canvas
 
 from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient
 from titulus_utility.titulus_ws.utils import get_protocol_dict
@@ -54,6 +54,7 @@ def _assicura_formato_pdf(contenuto):
     logger.debug("Conversione da testo a PDF completata con successo.")
     return buffer.getvalue()
 
+
 def _esegui_flusso_protocollo(
         tipo,
         azione,
@@ -72,7 +73,8 @@ def _esegui_flusso_protocollo(
         test,
         label_notifica,
         method_notifica,
-        voce_indice=None
+        voce_indice=None,
+        repertorio=None,
 ):
     """
     Funzione core per gestire l'intero flusso di comunicazione con Titulus.
@@ -122,7 +124,7 @@ def _esegui_flusso_protocollo(
         notification_endpoint = getattr(titulus_settings, 'NOTIFICATION_ENDPOINT_TEST',
                                         None) if invia_notifica else None
         notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH_TEST', None) if invia_notifica else None
-        lista_cc=None
+        lista_cc = None
 
 
     elif not test and valid_conf:
@@ -159,13 +161,17 @@ def _esegui_flusso_protocollo(
         raise Exception(error_msg)
 
     uo_nome = dict(titulus_settings.UO_DICT).get(prot_uo, prot_uo)
-
+    if repertorio:
+        cod_repertorio = repertorio.code
+    else:
+        cod_repertorio = None
     # Costruiamo il dizionario base combinandolo con i riferimenti esterni (che dipendono da arrivo/partenza)
     logger.debug("Creazione payload tramite get_protocol_dict (da utils.py)")
     protocol_kwargs = dict(
         tipo=tipo,
         bozza=bozza,
         oggetto=subject,
+        cod_repertorio=cod_repertorio,
         autore=titulus_settings.TITULUS_AUTORE,
         aoo=prot_aoo,
         agd=prot_agd,
@@ -348,7 +354,8 @@ def protocolla_arrivo(
         attachments=[],
         test=False,
         label_notifica=None,
-        method_notifica=None):
+        method_notifica=None,
+        repertorio=None):
     """
     Invia un documento da protocollare "in arrivo" a Titulus.
     Usa gli attributi dell'utente Django (user) come riferimento esterno mittente.
@@ -386,7 +393,8 @@ def protocolla_arrivo(
         attachments=attachments,
         test=test,
         label_notifica=label_notifica,
-        method_notifica=method_notifica
+        method_notifica=method_notifica,
+        repertorio=repertorio
     )
 
 
@@ -406,7 +414,8 @@ def avvia_iter_arrivo(
         test=False,
         invia_notifica=False,
         label_notifica='Invio notifica fine ITER',
-        method_notifica='POST'):
+        method_notifica='POST',
+        repertorio=None):
     """
     Salva il documento "in arrivo" in stato "bozza" e avvia il relativo Iter
     passando il parametro `voce_indice` (se mappato nei settings).
@@ -448,7 +457,8 @@ def avvia_iter_arrivo(
         test=test,
         voce_indice=voce_indice,
         label_notifica=label_notifica,
-        method_notifica=method_notifica
+        method_notifica=method_notifica,
+        repertorio=repertorio
     )
 
 
@@ -469,7 +479,9 @@ def protocolla_partenza(
         attachments=[],
         test=False,
         label_notifica=None,
-        method_notifica=None):
+        method_notifica=None,
+        repertorio=None
+):
     """
     Protocolla un documento in "partenza". Riceve direttamente i dati anagrafici
     del destinatario nei kwargs.
@@ -480,10 +492,10 @@ def protocolla_partenza(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
-    logger.debug(f"credential {credential_ws_protocollo}, configuration {configuration_ws_protocollo}, cognome_rif_esterno {cognome_rif_esterno}, cod_fis_rif_esterno {cod_fis_rif_esterno}")
+    logger.debug(
+        f"credential {credential_ws_protocollo}, configuration {configuration_ws_protocollo}, cognome_rif_esterno {cognome_rif_esterno}, cod_fis_rif_esterno {cod_fis_rif_esterno}")
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno
     if not test and not valid_conf:
-
         error_msg = _("Missing proper titulus credential or XML configurations")
         logger.error(error_msg)
         raise Exception(error_msg)
@@ -510,7 +522,8 @@ def protocolla_partenza(
         attachments_folder=attachments_folder,
         attachments=attachments,
         test=test, label_notifica=label_notifica,
-        method_notifica=method_notifica
+        method_notifica=method_notifica,
+        repertorio=repertorio
 
     )
 
@@ -534,7 +547,8 @@ def avvia_iter_partenza(
         test=False,
         invia_notifica=False,
         label_notifica='Invio notifica fine ITER',
-        method_notifica='POST'
+        method_notifica='POST',
+        repertorio=None
 ):
     """
     Salva il documento "in partenza" in stato "bozza" e avvia il relativo Iter
@@ -577,7 +591,8 @@ def avvia_iter_partenza(
         test=test,
         voce_indice=voce_indice,
         label_notifica=label_notifica,
-        method_notifica=method_notifica
+        method_notifica=method_notifica,
+        repertorio=repertorio
     )
 
 
@@ -587,7 +602,6 @@ def recupera_numero_protocollo(
         nrecord=None,
         test=False,
 ):
-
     logger.debug("Wrapper recupera_numero_protocollo invocato.")
     if obj_to_credential and not credential_ws_protocollo:
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
@@ -617,5 +631,3 @@ def recupera_numero_protocollo(
     wsclient.get_record_infos(nrecord=nrecord)
     assert getattr(wsclient, 'numero', None)
     return wsclient.numero
-
-

@@ -1,5 +1,10 @@
 <doc tipo="{{ tipo_documento }}" bozza="{{ bozza | default('no') }}" cod_amm_aoo="{{ cod_amm_aoo }}">
     <autore>{{ autore }}</autore>
+
+    {% if cod_repertorio%}
+    <repertorio cod="{{ cod_repertorio }}"></repertorio>
+    {% endif %}
+
     <oggetto>{{ oggetto }}</oggetto>
 
     {% if voce_indice and (bozza | default('no')) == 'si' %}
