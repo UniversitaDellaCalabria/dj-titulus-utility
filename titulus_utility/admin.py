@@ -1,11 +1,20 @@
 from django.contrib import admin
 from titulus_utility.models import CredentialWSProtocollo, ConfigurationWSProtocollo, VoceIndice, \
-    ConfigurationWSProtocolloCC, Repertorio
+    ConfigurationWSProtocolloCC, Repertorio, ConfigurationWSProtocolloOP
 
 
 # admin.site.register(ConfigurationWSProtocollo)
 # admin.site.register(CredentialWSProtocollo)
 # admin.site.register(VoceIndice)
+
+class ConfigurationWSProtocolloOPInline(admin.StackedInline):
+    """Inline per la gestione dell'Operatore (OP) - Relazione 1 a 1"""
+    model = ConfigurationWSProtocolloOP
+    can_delete = True  # Permette di rimuovere l'operatore se non serve più
+    classes = ['collapse']
+    verbose_name = "Operatore (OP)"
+    verbose_name_plural = "Operatore (OP)"
+
 
 class ConfigurationWSProtocolloCCInline(admin.TabularInline):
     model = ConfigurationWSProtocolloCC
@@ -22,8 +31,8 @@ class ConfigurationWSProtocolloAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'content_type')
     search_fields = ('name', 'object_id', 'protocollo_uo_rpa')
 
-    # Inseriamo i CC dentro la pagina della configurazione!
-    inlines = [ConfigurationWSProtocolloCCInline]
+    # Inseriamo sia l'OP (1 a 1) che i CC (1 a N)
+    inlines = [ConfigurationWSProtocolloOPInline, ConfigurationWSProtocolloCCInline]
 
     # Raggruppiamo i campi in sezioni ordinate
     fieldsets = (
@@ -69,7 +78,6 @@ class CredentialWSProtocolloAdmin(admin.ModelAdmin):
         if obj.is_active:
             obj.disable_other_configurations()
         super().save_model(request, obj, form, change)
-
 
 
 admin.site.register(VoceIndice)
