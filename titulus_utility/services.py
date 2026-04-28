@@ -125,7 +125,7 @@ def _esegui_flusso_protocollo(
                                         None) if invia_notifica else None
         notification_auth = getattr(titulus_settings, 'NOTIFICATION_AUTH_TEST', None) if invia_notifica else None
         lista_cc = None
-
+        dict_op = None
 
     elif not test and valid_conf:
         logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
@@ -155,6 +155,15 @@ def _esegui_flusso_protocollo(
                 'nome_uff': dict(titulus_settings.UO_DICT).get(cc.protocollo_uo, cc.protocollo_uo),
                 'cod_uff': cc.protocollo_uo
             })
+        dict_op = None
+        if hasattr(configuration_ws_protocollo, 'op_user'):
+            op = configuration_ws_protocollo.op_user
+            dict_op = {
+                'nome_persona': op.protocollo_persona,
+                'cod_persona': op.protocollo_persona_matricola,
+                'nome_uff': dict(titulus_settings.UO_DICT).get(op.protocollo_uo, op.protocollo_uo),
+                'cod_uff': op.protocollo_uo
+            }
     else:
         error_msg = _("Missing XML configuration or notification endpoint for production")
         logger.error(error_msg)
@@ -188,6 +197,7 @@ def _esegui_flusso_protocollo(
         fascicolo_num=prot_fascicolo_num,
         fascicolo_anno=prot_fascicolo_anno,
         rif_interni_cc=lista_cc,
+        rif_interno_op=dict_op,
         voce_indice=voce_indice,
         label_notifica=label_notifica,
         method_notifica=method_notifica,

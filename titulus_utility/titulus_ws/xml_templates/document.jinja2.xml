@@ -19,6 +19,13 @@
                      nome_uff="{{ nome_uff_rif_interno }}"
                      cod_uff="{{ cod_uff_rif_interno }}"
                      {% if cod_persona %}cod_persona="{{ cod_persona }}"{% endif %}/>
+    {% if rif_interno_op %}
+        <rif_interno diritto="OP"
+                     cod_uff="{{ rif_interno_op.cod_uff }}"
+                     {% if rif_interno_op.nome_persona %}nome_persona="{{ rif_interno_op.nome_persona }}"{% endif %}
+                     {% if rif_interno_op.nome_uff %}nome_uff="{{ rif_interno_op.nome_uff }}"{% endif %}
+                     {% if rif_interno_op.cod_persona %}cod_persona="{{ rif_interno_op.cod_persona }}"{% endif %}/>
+        {% endif %}
     {% if rif_interni_cc %}
         {% for cc in rif_interni_cc %}
         <rif_interno diritto="CC"

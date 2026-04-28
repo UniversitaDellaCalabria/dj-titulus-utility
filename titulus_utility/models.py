@@ -207,6 +207,35 @@ class ConfigurationWSProtocollo(TimeStampedModel):
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
+class ConfigurationWSProtocolloOP(TimeStampedModel):
+    """
+    Modello per l'archiviazione dell'Operatore (OP) incaricato.
+    Legato a 1 a 1 con ConfigurationWSProtocollo.
+    """
+    configurazione = models.OneToOneField(
+        ConfigurationWSProtocollo,
+        on_delete=models.CASCADE,
+        related_name="op_user"
+    )
+    protocollo_uo = models.CharField("UO", max_length=12, choices=_protocollo_uo_list)
+    protocollo_persona = models.CharField(
+        "Nominativo OP", max_length=255, default="", blank=True
+    )
+    protocollo_persona_username = models.CharField(
+        "Username OP", max_length=255, default="", blank=True
+    )
+    protocollo_persona_matricola = models.CharField(
+        "Matricola OP", max_length=255, default="", blank=True
+    )
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = _("Operatore Configurazione WS Protocollo")
+        verbose_name_plural = _("Operatori Configurazioni WS Protocollo")
+
+    def __str__(self):
+        return f"OP: {self.protocollo_uo} - {self.protocollo_persona} ({self.configurazione.name})"
+
 
 class ConfigurationWSProtocolloCC(TimeStampedModel):
     """

@@ -50,6 +50,7 @@ def get_protocol_dict(**kwargs):
         'cod_uff_rif_interno': kwargs.get('uo'),
         'cod_persona': kwargs.get('cod_persona'),
         'rif_interni_cc': kwargs.get('rif_interni_cc', []),
+        'rif_interno_op': kwargs.get('rif_interno_op',None),
         'send_email': kwargs.get('send_email'),
 
         # --- Riferimento esterno (Refattorizzato, neutrale rispetto al verso) ---
