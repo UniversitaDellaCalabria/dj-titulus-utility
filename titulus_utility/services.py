@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
 from reportlab.pdfgen import canvas
 
-from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient
+from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusFileClient
 from titulus_utility.titulus_ws.utils import get_protocol_dict
 from . import conf as titulus_settings
 from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
@@ -641,3 +641,46 @@ def recupera_numero_protocollo(
     wsclient.get_record_infos(nrecord=nrecord)
     assert getattr(wsclient, 'numero', None)
     return wsclient.numero
+
+def recupera_documenti(
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        nrecord=None,
+        attachments=None,
+        test=False,
+):
+    logger.debug("Wrapper recupera_documenti invocato.")
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    valid_conf = credential_ws_protocollo and nrecord
+
+    logger.info(f"Avvio recupero files per il record {nrecord}")
+    if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Missing XML configuration or notification endpoint for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    wsclient = WSTitulusFileClient(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+    )
+    wsclient.load_document(nrecord=nrecord)
+    assert getattr(wsclient, 'document', None)
+    files={}
+    for a in attachments:
+        c_file=wsclient.get_attachment(a)
+        if c_file is None:
+            logger.error(f"Cannot get file {a} from Titulus!")
+        files[a]=c_file
+    return files

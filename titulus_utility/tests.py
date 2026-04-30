@@ -284,3 +284,8 @@ class TitulusIntegrationTests(TestCase):
             test=True,
         )
         self.assertIsNotNone(risultato)
+
+    def test_10_get_attachments(self):
+        risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,nrecord="000063964-UCALPRG-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",attachments=["MSTLNE94M46C710M.pdf"],test=True)
+        self.assertIsNotNone(risultato)
+        print(risultato)

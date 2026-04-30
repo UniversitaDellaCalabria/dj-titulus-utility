@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 import xml.etree.ElementTree as ET
@@ -54,6 +55,127 @@ class WSTitulusConnector(object):
         """Verifica lo stato della connessione e la avvia se assente."""
         if not self.is_connected():
             self.connect()
+
+class WSTitulusFileClient(WSTitulusConnector):
+    def __init__(self,
+                 wsdl_url,
+                 username,
+                 password):
+        # Inizializza la classe base (WSTitulusConnector)
+        super().__init__(wsdl_url=wsdl_url, username=username, password=password)
+        self.document = None
+
+    def load_document(self, nrecord):
+        logger.info(f"Caricamento del documento con nrecord: {nrecord}")
+        self.assure_connection()
+
+        try:
+            logger.debug("Invocazione servizio loadDocument")
+            raw_response = self.service.loadDocument(id=nrecord, lock=False)
+
+            if raw_response:
+                logger.debug("Risposta raw da loadDocument ricevuta con successo")
+
+                xml_string = raw_response if isinstance(raw_response, str) else raw_response._value_1
+                self.document = ET.fromstring(xml_string)
+                return True
+            else:
+                self.document = None
+                return False
+
+        except Exception as e:
+            logger.exception(f"Errore fatale durante load_document: {e}")
+            raise
+
+    def get_attachment(self, filename):
+        logger.info(f"Richiesta allegato: {filename}")
+
+        # Ora verifichiamo che self.document non sia None
+        if self.document is None:
+            raise Exception("Impossibile scaricare l'allegato richiesto, documento non caricato in memoria, chiamare load_document prima")
+
+        self.assure_connection()
+
+        try:
+            logger.debug("Ricerca del fileId nell'albero XML in memoria")
+
+            # Definizione del namespace usato per i tag dei file in Titulus
+            namespaces = {'xw': 'http://www.kion.it/ns/xw'}
+
+            # 1. Cerca direttamente su self.document
+            target_file_node = None
+            files_node = self.document.find('.//files')
+
+            if files_node is not None:
+                for f_node in files_node.findall('xw:file', namespaces=namespaces):
+                    if f_node.attrib.get('title') == filename:
+                        target_file_node = f_node
+                        break
+
+            if target_file_node is None:
+                raise Exception(f"File con titolo '{filename}' non trovato nel documento.")
+
+            # 2. Ciclo per trovare il nodo xw:file più annidato (l'ultima versione/modifica)
+            current_node = target_file_node
+            while True:
+                child_node = current_node.find('xw:file', namespaces=namespaces)
+                if child_node is not None:
+                    current_node = child_node
+                else:
+                    break
+
+            # 3. Estrazione del fileId definitivo
+            file_id = current_node.attrib.get('name')
+
+            if not file_id:
+                raise Exception(f"Attributo 'name' (fileId) non trovato per il file '{filename}'.")
+
+            logger.info(f"Trovato fileId dell'ultima versione: {file_id}")
+
+            # 4. Invocazione servizio getAttachment
+            logger.debug("Invocazione servizio getAttachment")
+            attachment_bean = self.service.getAttachment(fileId=file_id)
+
+            if attachment_bean:
+                logger.debug("Risposta da getAttachment ricevuta. Tento l'estrazione del payload.")
+
+                try:
+                    file_content = attachment_bean.content._value_1
+
+                except AttributeError:
+                    logger.warning("Struttura AttachmentBean inattesa. Tento il recupero dal dizionario o XML grezzo.")
+
+                    if isinstance(attachment_bean, dict) and 'content' in attachment_bean:
+                        file_content = attachment_bean['content']
+                        if hasattr(file_content, '_value_1'):
+                            file_content = file_content._value_1
+
+                    elif isinstance(attachment_bean, str):
+                        root = ET.fromstring(attachment_bean)
+                        content_node = root.find('.//content')
+                        file_content = content_node.text if content_node is not None else None
+
+                    else:
+                        raise Exception("Impossibile estrarre 'content' dall'AttachmentBean.")
+
+                # --- Verifiche finali e decodifica ---
+                if not file_content:
+                    raise Exception("Il contenuto estratto dal Web Service è vuoto.")
+
+                if isinstance(file_content, str):
+                    logger.debug("Decodifica manuale del contenuto da Base64 a Bytes")
+                    return base64.b64decode(file_content)
+
+                elif isinstance(file_content, bytes):
+                    logger.debug("Il contenuto è già in formato Bytes")
+                    return file_content
+
+                else:
+                    raise Exception(f"Tipo di dato non previsto per il contenuto del file: {type(file_content)}")
+
+        except Exception as e:
+            logger.exception(f"Errore fatale durante get_attachment: {e}")
+            raise
 
 
 class WSTitulusQueryClient(WSTitulusConnector):
