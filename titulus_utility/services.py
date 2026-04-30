@@ -283,7 +283,7 @@ def _esegui_flusso_protocollo(
             with open(file_path, "rb") as f:
                 wsclient.aggiungi_allegato(
                     nome=v,
-                    descrizione=subject,
+                    descrizione=v,#subject,
                     fopen=f,
                     test=test
                 )
