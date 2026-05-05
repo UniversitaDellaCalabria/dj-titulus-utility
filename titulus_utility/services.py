@@ -193,7 +193,7 @@ def _esegui_flusso_protocollo(
         email_ufficio=prot_email,
         titolario="",
         cod_titolario=prot_titolario,
-        num_allegati=1 + len(attachments),
+        num_allegati = len(attachments),
         fascicolo_num=prot_fascicolo_num,
         fascicolo_anno=prot_fascicolo_anno,
         rif_interni_cc=lista_cc,
