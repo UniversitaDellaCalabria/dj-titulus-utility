@@ -64,19 +64,20 @@ class WSTitulusFileClient(WSTitulusConnector):
         # Inizializza la classe base (WSTitulusConnector)
         super().__init__(wsdl_url=wsdl_url, username=username, password=password)
         self.document = None
+        self.nrecord = None
 
     def load_document(self, nrecord):
         logger.info(f"Caricamento del documento con nrecord: {nrecord}")
+        self.nrecord = nrecord
         self.assure_connection()
 
         try:
-            logger.debug("Invocazione servizio loadDocument")
+            logger.debug(f"[{nrecord}] Invocazione servizio loadDocument")
             raw_response = self.service.loadDocument(id=nrecord, lock=False)
 
             if raw_response:
-                logger.debug("Risposta raw da loadDocument ricevuta con successo")
-
                 xml_string = raw_response if isinstance(raw_response, str) else raw_response._value_1
+                logger.debug(f"[{nrecord}] Risposta raw da loadDocument ricevuta con successo \n{xml_string}")
                 self.document = ET.fromstring(xml_string)
                 return True
             else:
@@ -84,20 +85,21 @@ class WSTitulusFileClient(WSTitulusConnector):
                 return False
 
         except Exception as e:
-            logger.exception(f"Errore fatale durante load_document: {e}")
+            logger.exception(f"[{nrecord}] Errore fatale durante load_document: {e}")
             raise
 
     def get_attachment(self, filename):
-        logger.info(f"Richiesta allegato: {filename}")
 
         # Ora verifichiamo che self.document non sia None
         if self.document is None:
-            raise Exception("Impossibile scaricare l'allegato richiesto, documento non caricato in memoria, chiamare load_document prima")
+            raise Exception(f"Impossibile scaricare l'allegato richiesto, documento non caricato in memoria, chiamare load_document prima")
+
+        logger.info(f"[{self.nrecord}] Richiesta allegato: {filename}")
 
         self.assure_connection()
 
         try:
-            logger.debug("Ricerca del fileId nell'albero XML in memoria")
+            logger.debug(f"[{self.nrecord}] Ricerca del fileId nell'albero XML in memoria")
 
             # Definizione del namespace usato per i tag dei file in Titulus
             namespaces = {'xw': 'http://www.kion.it/ns/xw'}
@@ -113,7 +115,7 @@ class WSTitulusFileClient(WSTitulusConnector):
                         break
 
             if target_file_node is None:
-                raise Exception(f"File con titolo '{filename}' non trovato nel documento.")
+                raise Exception(f"[{self.nrecord}] File con titolo '{filename}' non trovato nel documento.")
 
             # 2. Ciclo per trovare il nodo xw:file più annidato (l'ultima versione/modifica)
             current_node = target_file_node
@@ -128,22 +130,22 @@ class WSTitulusFileClient(WSTitulusConnector):
             file_id = current_node.attrib.get('name')
 
             if not file_id:
-                raise Exception(f"Attributo 'name' (fileId) non trovato per il file '{filename}'.")
+                raise Exception(f"[{self.nrecord}] Attributo 'name' (fileId) non trovato per il file '{filename}'.")
 
-            logger.info(f"Trovato fileId dell'ultima versione: {file_id}")
+            logger.info(f"[{self.nrecord}] Trovato fileId dell'ultima versione: {file_id}")
 
             # 4. Invocazione servizio getAttachment
-            logger.debug("Invocazione servizio getAttachment")
+            logger.debug(f"[{self.nrecord}] Invocazione servizio getAttachment per {file_id}")
             attachment_bean = self.service.getAttachment(fileId=file_id)
 
             if attachment_bean:
-                logger.debug("Risposta da getAttachment ricevuta. Tento l'estrazione del payload.")
+                logger.debug(f"[{self.nrecord}] Risposta da getAttachment ricevuta. Tento l'estrazione del payload.")
 
                 try:
                     file_content = attachment_bean.content._value_1
 
                 except AttributeError:
-                    logger.warning("Struttura AttachmentBean inattesa. Tento il recupero dal dizionario o XML grezzo.")
+                    logger.warning(f"[{self.nrecord}] Struttura AttachmentBean inattesa. Tento il recupero dal dizionario o XML grezzo.")
 
                     if isinstance(attachment_bean, dict) and 'content' in attachment_bean:
                         file_content = attachment_bean['content']
@@ -156,25 +158,25 @@ class WSTitulusFileClient(WSTitulusConnector):
                         file_content = content_node.text if content_node is not None else None
 
                     else:
-                        raise Exception("Impossibile estrarre 'content' dall'AttachmentBean.")
+                        raise Exception(f"[{self.nrecord}] Impossibile estrarre 'content' dall'AttachmentBean.")
 
                 # --- Verifiche finali e decodifica ---
                 if not file_content:
-                    raise Exception("Il contenuto estratto dal Web Service è vuoto.")
+                    raise Exception(f"[{self.nrecord}] Il contenuto estratto dal Web Service è vuoto.")
 
                 if isinstance(file_content, str):
-                    logger.debug("Decodifica manuale del contenuto da Base64 a Bytes")
+                    logger.debug(f"[{self.nrecord}] Decodifica manuale del contenuto da Base64 a Bytes")
                     return base64.b64decode(file_content)
 
                 elif isinstance(file_content, bytes):
-                    logger.debug("Il contenuto è già in formato Bytes")
+                    logger.debug(f"[{self.nrecord}] Il contenuto è già in formato Bytes")
                     return file_content
 
                 else:
-                    raise Exception(f"Tipo di dato non previsto per il contenuto del file: {type(file_content)}")
+                    raise Exception(f"[{self.nrecord}] Tipo di dato non previsto per il contenuto del file: {type(file_content)}")
 
         except Exception as e:
-            logger.exception(f"Errore fatale durante get_attachment: {e}")
+            logger.exception(f"[{self.nrecord}] Errore fatale durante get_attachment: {e}")
             raise
 
 
@@ -208,11 +210,11 @@ class WSTitulusQueryClient(WSTitulusConnector):
         self.assure_connection()
 
         try:
-            logger.debug(f"Invocazione servizio getRecordInfos")
+            logger.debug(f"[{nrecord}] Invocazione servizio getRecordInfos")
             record_info = self.service.getRecordInfos(id=nrecord)
 
             if record_info:
-                logger.debug(f"Risposta raw da getRecordInfos: {record_info._value_1}")
+                logger.debug(f"[{nrecord}] Risposta raw da getRecordInfos: {record_info._value_1}")
                 root = ET.fromstring(record_info._value_1)
 
                 doc_node = root.find('.//doc')
@@ -222,17 +224,17 @@ class WSTitulusQueryClient(WSTitulusConnector):
 
                     if 'num_prot' in attribs:
                         self.numero = attribs['num_prot']
-                        logger.info(f"Record recuperato. Assegnato Num Prot: {self.numero}")
+                        logger.info(f"[{nrecord}] Record recuperato. Assegnato Num Prot: {self.numero}")
 
                     if 'nrecord' in attribs:
                         self.nrecord = attribs['nrecord']
-                        logger.info(f"Record recuperato. Assegnato Nrecord: {self.nrecord}")
+                        logger.info(f"[{nrecord}] Record recuperato. Assegnato Nrecord: {self.nrecord}")
                 else:
-                    logger.error("Attenzione: Nodo <doc> non trovato nella risposta XML!")
+                    logger.error(f"[{nrecord}] Attenzione: Nodo <doc> non trovato nella risposta XML!")
 
                 return True
         except Exception as e:
-            logger.exception(f"Errore fatale durante _get_record_infos: {e}")
+            logger.exception(f"[{nrecord}] Errore fatale durante _get_record_infos: {e}")
             raise
 
     def cercaDocumento(self, key, value):
