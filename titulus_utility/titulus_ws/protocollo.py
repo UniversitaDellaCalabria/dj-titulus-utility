@@ -436,10 +436,10 @@ class WSTitulusClient(WSTitulusQueryClient):
         logger.info("Richiesta di fascicolazione documento inviata.")
         self.assure_connection()
 
-        if self.rpa_username:
-            logger.debug(f"Impostazione impersonificazione WSUser: {self.rpa_username}")
+        if self.rpa_code:
+            logger.debug(f"Impostazione impersonificazione WSUser: {self.rpa_username}, usando la sua matricola {self.rpa_code}")
             self.service.setWSUser(
-                user=self.rpa_username,
+                user=self.rpa_code,
                 pnumber=self.rpa_code
             )
         try:
