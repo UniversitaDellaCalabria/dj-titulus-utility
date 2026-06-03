@@ -377,7 +377,8 @@ def protocolla_arrivo(
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
 
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and valid_fascicolazione
 
     rif_esterno_data = {
         'nome_rif_esterno': user.first_name,
@@ -438,7 +439,8 @@ def avvia_iter_arrivo(
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
 
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice and valid_fascicolazione
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
@@ -504,7 +506,8 @@ def protocolla_partenza(
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
     logger.debug(
         f"credential {credential_ws_protocollo}, configuration {configuration_ws_protocollo}, cognome_rif_esterno {cognome_rif_esterno}, cod_fis_rif_esterno {cod_fis_rif_esterno}")
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and valid_fascicolazione
     if not test and not valid_conf:
         error_msg = _("Missing proper titulus credential or XML configurations")
         logger.error(error_msg)
@@ -571,8 +574,8 @@ def avvia_iter_partenza(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
-
-    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and voce_indice
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and voce_indice and valid_fascicolazione
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
