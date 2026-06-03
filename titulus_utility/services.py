@@ -509,7 +509,7 @@ def protocolla_partenza(
     valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and valid_fascicolazione
     if not test and not valid_conf:
-        error_msg = _("Missing proper titulus credential or XML configurations")
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
         logger.error(error_msg)
         raise Exception(error_msg)
     rif_esterno_data = {
