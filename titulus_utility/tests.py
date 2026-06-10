@@ -289,3 +289,385 @@ class TitulusIntegrationTests(TestCase):
         risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,nrecord="000063964-UCALPRG-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",attachments=["MSTLNE94M46C710M.pdf"],test=True)
         self.assertIsNotNone(risultato)
         print(risultato)
+
+    # ==========================================
+    # CASI MESSAGE BROKER - RICEVUTE
+    # ==========================================
+
+    def test_11_registra_ricevuta_documento(self):
+        """
+        Testa la sottomissione di una ricevuta/notifica associata a un record esistente.
+        Verifica il funzionamento end-to-end del modulo WSTitulusMessageBroker.
+        """
+        # Utilizziamo lo stesso nrecord di test valido e già presente nell'ambiente CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+        # Generiamo al volo un XML di ricevuta simulato in byte
+        dummy_receipt_content = b"<notifica><stato>CONSEGNATO</stato><operazione>TEST-INTEGRAZIONE</operazione></notifica>"
+        dummy_receipt_name = "ricevuta_consegna_pec.xml"
+
+        risultato = services.registra_ricevuta_documento(
+            nrecord=test_nrecord,
+            infos="Notifica di Consegna PEC - Test Automatico Integrazione",
+            type="messaggio_ricezione_flusso",
+            esito="OK",
+            receipt_file_name=dummy_receipt_name,
+            receipt_file=dummy_receipt_content,
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False
+        )
+
+        # Ci aspettiamo che il service restituisca True a seguito della chiamata SOAP andata a buon fine
+        self.assertTrue(risultato, "La registrazione della ricevuta tramite MessageBroker è fallita su Titulus.")
+
+    def test_12_registra_ricevuta_documento_pdf(self):
+        """
+        Testa la sottomissione di una ricevuta in formato PDF binario.
+        Verifica che il MessageBroker carichi e associ correttamente il documento.
+        """
+        # Utilizziamo l'nrecord di test valido sul server CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+
+        # Generiamo una struttura minima ma binariamente valida di un file PDF
+        # Questo evita che i validatori di Titulus scartino il file
+        dummy_pdf_content = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
+            b"xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000056 00000 n\n0000000111 00000 n\n"
+            b"trailer\n<< /Size 4 /Root 1 0 R >>\n"
+            b"startxref\n190\n"
+            b"%%EOF"
+        )
+        dummy_pdf_name = "ricevuta_notifica_firmata.pdf"
+
+        risultato = services.registra_ricevuta_documento(
+            nrecord=test_nrecord,
+            infos="Notifica di Avvenuta Consegna - Allegato PDF",
+            type="messaggi_esito_applicativo",
+            esito="OK",
+            receipt_file_name=dummy_pdf_name,
+            receipt_file=dummy_pdf_content,  # Passiamo i byte del PDF appena generato
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False
+        )
+
+        # Verifica che il server risponda con successo (True)
+        self.assertTrue(risultato, "Il MessageBroker ha fallito l'invio della ricevuta in formato PDF.")
+
+    def test_13_registra_ricevuta_eml_documento(self):
+        """
+        Testa la generazione dinamica di una ricevuta in formato .eml (testo + allegato)
+        e il suo corretto caricamento e associazione su un documento Titulus esistente.
+        """
+        # Utilizziamo lo stesso nrecord di test valido sul server sandbox CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+
+
+        # 1. Il file (es. dati XML) che vogliamo si trovi DENTRO l'email come allegato
+        inner_xml_content = b"<ricevuta><id>12345</id><esito>CONSEGNATO</esito></ricevuta>"
+        inner_xml_name = "dati_notifica_core.xml"
+
+        # 2. Il corpo del testo dell'email (.eml)
+        testo_corpo_email = (
+            "Buongiorno,\n\n"
+            "Si trasmette la notifica telematica prodotta automaticamente dai sistemi centrali.\n"
+            "I dettagli strutturati dell'esito sono disponibili nel file XML allegato.\n\n"
+            "Cordiali saluti,\nServizio Integrazione Message Broker Unical."
+        )
+
+
+        # Invochiamo il nuovo service wrapper
+        risultato = services.registra_ricevuta_eml_documento(
+            nrecord=test_nrecord,
+            infos="Messaggio di Notifica PEC Complesso (.eml)",
+            type="messaggio_ricezione_flusso",
+            esito="OK",
+            receipt_file=inner_xml_content,  # Diventa l'allegato interno dell'EML
+            attachment_name=inner_xml_name,  # Nome dell'allegato interno
+            email_body=testo_corpo_email,  # Corpo dell'EML
+            eml_filename="notifica_pec_completa.eml",  # Nome dell'EML registrato su Titulus
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False,
+            # Se vuoi, qui puoi testare il passaggio opzionale delle intestazioni personalizzate:
+            email_subject="[NOTIFICA AUTOMATICA] Esito Ricezione Flusso",
+            email_from="notifiche-automatiche@unical.it"
+            # email_to viene omesso appositamente per testare il fallback di default
+        )
+
+        # Ci aspettiamo che il server di test di Titulus risponda con successo
+        self.assertTrue(risultato, "Il service registra_ricevuta_eml_documento ha fallito la sottomissione.")
+
+    def test_14_registra_ricevuta_eml_documento_con_pdf_reale(self):
+        """
+        Testa la generazione di una ricevuta .eml leggendo un file PDF reale
+        presente sul disco (media/attachment_test/Questo allegato di test 1.pdf).
+        """
+        import os
+        from django.conf import settings
+
+        # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+        # Costruiamo il percorso assoluto in modo sicuro.
+        # Se 'media' si trova nella radice del tuo progetto Django:
+        file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "Questo allegato di test 1.pdf")
+
+        # Se invece usi la configurazione standard di Django per i media:
+        # file_path = os.path.join(settings.MEDIA_ROOT, "attachment_test", "Questo allegato di test 1.pdf")
+
+        # Controllo preventivo per assicurarsi che il file esista e non fallire alla cieca
+        self.assertTrue(os.path.exists(file_path), f"Attenzione, file non trovato al percorso: {file_path}")
+
+        # Leggiamo il contenuto binario del file reale dal disco
+        with open(file_path, "rb") as f:
+            real_pdf_content = f.read()
+
+        inner_pdf_name = "Questo allegato di test 1.pdf"
+
+        corpo_email_testo = (
+            "Gentile Utente,\n\n"
+            "si trasmette in allegato a questa comunicazione il documento PDF reale "
+            "recuperato direttamente dal file system del server.\n\n"
+            "Cordiali saluti,\nSistemi Informativi - Università della Calabria."
+        )
+
+
+        # Invochiamo il service passandogli i byte del file reale appena letti
+        risultato = services.registra_ricevuta_eml_documento(
+            nrecord=test_nrecord,
+            infos="Notifica Mail EML con PDF reale prelevato da disco",
+            type="messaggi_esito_applicativo",
+            esito="OK",
+            receipt_file=real_pdf_content,  # <--- Passiamo i byte del tuo file reale
+            attachment_name=inner_pdf_name,
+            email_body=corpo_email_testo,
+            eml_filename="notifica_con_pdf_reale.eml",
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False,
+            email_subject="[REPORT SYSTEM] Invio Documento Reale da Disco",
+            email_from="servizi-web-ws@unical.it"
+        )
+
+        # Verifica che Titulus accetti l'EML contenente il tuo PDF reale
+        self.assertTrue(risultato, "Il service ha fallito l'invio dell'EML con il PDF reale.")
+
+    # ==========================================
+    # CASI CON FILE ZIP (DIRETTO E INGLOBATO)
+    # ==========================================
+
+    def test_15_registra_ricevuta_zip_diretto(self):
+        """
+        Testa la sottomissione diretta di un file ZIP reale (ziptesst.zip)
+        come ricevuta associata a un record esistente su Titulus.
+        """
+        import os
+        from django.conf import settings
+
+        # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+        # Costruzione del percorso sicuro verso il file ZIP su disco
+        file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
+
+        # Verifica preventiva dell'esistenza del file per un feedback immediato nei log di test
+        self.assertTrue(os.path.exists(file_path), f"File ZIP non trovato al percorso richiesto: {file_path}")
+
+        # Lettura binaria dello ZIP
+        with open(file_path, "rb") as f:
+            zip_content = f.read()
+
+        zip_file_name = "ziptesst.zip"
+
+
+        # Invocazione del servizio di registrazione diretta
+        risultato = services.registra_ricevuta_documento(
+            nrecord=test_nrecord,
+            infos="Archivio ZIP di Log - Sottomissione Diretta",
+            type="messaggi_esito_applicativo",
+            esito="OK",
+            receipt_file_name=zip_file_name,
+            receipt_file=zip_content,  # Passiamo i byte dello ZIP
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False
+        )
+
+        # Ci aspettiamo che Titulus accetti il file ZIP e ritorni True
+        self.assertTrue(risultato, "Il service ha fallito l'invio diretto del file ZIP.")
+
+    def test_16_registra_ricevuta_eml_con_zip_inglobato(self):
+        """
+        Testa la generazione di una ricevuta .eml che contiene un corpo testo
+        e un file allegato in formato ZIP binario (ziptesst.zip), registrandola su Titulus.
+        """
+        import os
+        from django.conf import settings
+
+        # Utilizziamo lo stesso nrecord valido dell'ambiente sandbox CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+        # Costruzione del percorso sicuro verso il file ZIP su disco
+        file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
+
+        # Verifica preventiva dell'esistenza del file
+        self.assertTrue(os.path.exists(file_path), f"File ZIP non trovato per incapsulamento EML: {file_path}")
+
+        # Lettura binaria dello ZIP
+        with open(file_path, "rb") as f:
+            zip_content = f.read()
+
+        inner_zip_name = "ziptesst.zip"
+
+        corpo_email_testo = (
+            "Spettabile Assistenza,\n\n"
+            "si trasmette in allegato l'archivio compresso ZIP contenente i file di log "
+            "e i dettagli strutturati estratti a sistema per la verifica del flusso.\n\n"
+            "Messaggio automatico inviato da Message Broker Unical."
+        )
+
+
+        # Invocazione del servizio che incapsula lo ZIP nell'EML
+        risultato = services.registra_ricevuta_eml_documento(
+            nrecord=test_nrecord,
+            infos="Notifica Mail EML con allegato archivio ZIP di log",
+            type="messaggio_ricezione_flusso",
+            esito="OK",
+            receipt_file=zip_content,  # I byte del file ZIP finiranno dentro l'EML
+            attachment_name=inner_zip_name,  # Nome del file compresso dentro l'email
+            email_body=corpo_email_testo,  # Corpo testo del file .eml
+            eml_filename="notifica_con_allegato_zip.eml",  # Nome del file .eml finale su Titulus
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False,
+            # Passaggio opzionale di metadati personalizzati per l'EML:
+            email_subject="[BACKUP SYSTEM] Invio Archivio Log Compresso",
+            email_from="servizi-web-ws@unical.it"
+        )
+
+        # Verifica che il server SOAP di Titulus accetti il pacchetto MIME (.eml) contenente lo ZIP
+        self.assertTrue(risultato, "Il service ha fallito l'invio della ricevuta EML con ZIP inglobato.")
+
+
+# ==========================================
+    # CASI CON ANNIDAMENTO EML (1 E 2 LIVELLI)
+    # ==========================================
+
+    def test_17_registra_ricevuta_eml_con_eml_allegato(self):
+        """
+        Testa la generazione di una ricevuta .eml che contiene a sua volta
+        un file .eml come allegato (il quale possiede un suo testo indipendente).
+        """
+        from email.message import EmailMessage
+
+        # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+        # 1. Costruiamo l'email INTERNA (l'allegato .eml) con il proprio testo indipendente
+        inner_msg = EmailMessage()
+        inner_msg['Subject'] = 'Dettaglio Notifica Interna - Originaria'
+        inner_msg['From'] = 'sistema-sorgente@unical.it'
+        inner_msg['To'] = 'audit-log@unical.it'
+        inner_msg.set_content(
+            "Questo è il corpo del testo dell'email ALLEGATA (interna).\n"
+            "Contiene i metadati originari estratti dalla transazione di rete."
+        )
+        # Seralizziamo l'email interna in byte crudi
+        inner_eml_bytes = inner_msg.as_bytes()
+
+        # 2. Definiamo il testo che comparirà nel corpo dell'email ESTERNA (contenitore)
+        corpo_email_esterna = (
+            "Si trasmette in allegato la notifica telematica inoltrata.\n"
+            "Il file .eml allegato contiene i dettagli nativi del messaggio originario."
+        )
+
+
+        # Invochiamo il servizio: prenderà i byte dell'email interna e li incapsulerà nell'email principale
+        risultato = services.registra_ricevuta_eml_documento(
+            nrecord=test_nrecord,
+            infos="Notifica Mail EML contenente allegato EML interno",
+            type="messaggio_ricezione_flusso",
+            esito="OK",
+            receipt_file=inner_eml_bytes,                     # Byte dell'email interna
+            attachment_name="messaggio_originale_allegato.eml", # Nome dell'allegato dentro l'email
+            email_body=corpo_email_esterna,                   # Testo dell'email contenitore
+            eml_filename="notifica_principale_con_eml_dentro.eml", # Nome del file .eml finale registrato
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False,
+            email_subject="[CONTAINER] Notifica Principale - Invio Involucro EML"
+        )
+
+        # Verifica che il server di test di Titulus accetti il pacchetto MIME
+        self.assertTrue(risultato, "Il service ha fallito l'invio della ricevuta EML contenente un EML allegato.")
+
+
+    def test_18_registra_ricevuta_eml_annidato_due_livelli(self):
+        """
+        Testa la sottomissione di una struttura ad annidamento profondo (2 livelli di nesting):
+        Email Esterna (Livello 0) -> contiene Email Intermedia (Livello 1) -> contiene Email Interna (Livello 2).
+        """
+        from email.message import EmailMessage
+
+        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+
+
+        # --- LIVELLO 2: L'email più profonda (Interna) ---
+        inner_msg = EmailMessage()
+        inner_msg['Subject'] = 'Livello 2 - Core Log Originario'
+        inner_msg['From'] = 'kernel-broker@unical.it'
+        inner_msg['To'] = 'dev-null@unical.it'
+        inner_msg.set_content("Testo critico generato dal core del Message Broker (Livello 2 - Più interno).")
+        inner_eml_bytes = inner_msg.as_bytes()
+
+        # --- LIVELLO 1: L'email intermedia che ingloba il livello 2 ---
+        middle_msg = EmailMessage()
+        middle_msg['Subject'] = 'Livello 1 - Involucro Intermedio di Smistamento'
+        middle_msg['From'] = 'dispatch-service@unical.it'
+        middle_msg['To'] = 'buffer-routing@unical.it'
+        middle_msg.set_content(
+            "Testo del livello intermedio (Livello 1).\n"
+            "Trovate l'email nativa di livello 2 in allegato all'interno."
+        )
+        # Agganciamo l'email interna a quella intermedia impostando il tipo rfc822
+        middle_msg.add_attachment(
+            inner_eml_bytes,
+            maintype="message",
+            subtype="rfc822",
+            filename="email_livello_2_interna.eml"
+        )
+        middle_eml_bytes = middle_msg.as_bytes()
+
+        # --- LIVELLO 0: Il testo dell'email ESTERNA (Radice) generata dal Service ---
+        corpo_email_esterna = (
+            "Attenzione: rilevato flusso ad incapsulamento multiplo (Nesting Profondo).\n"
+            "In allegato viene inoltrato l'involucro intermedio di livello 1.\n"
+            "Procedere con il parsing ricorsivo se necessario."
+        )
+
+
+        # Il service prenderà middle_eml_bytes (che ha già dentro il livello 2) e lo impacchetterà nel livello 0
+        risultato = services.registra_ricevuta_eml_documento(
+            nrecord=test_nrecord,
+            infos="Notifica Mail EML con 2 livelli di annidamento EML ricorsivi",
+            type="messaggio_ricezione_flusso",
+            esito="OK",
+            receipt_file=middle_eml_bytes,                 # Passiamo l'involucro intermedio (Livello 1)
+            attachment_name="involucro_livello_1.eml",       # Nome dell'allegato dentro la mail radice
+            email_body=corpo_email_esterna,                 # Testo della mail radice (Livello 0)
+            eml_filename="notifica_radice_livello_0.eml",   # File .eml finale salvato su Titulus
+            credential_ws_protocollo=self.mock_cred,
+            test=True,
+            extract_cades=False,
+            email_subject="[ROOT-LEVEL 0] Analisi Flusso Multi-Incapsulato"
+        )
+
+        # Verifica che Titulus accetti l'annidamento ricorsivo rfc822 senza sollevare eccezioni
+        self.assertTrue(risultato, "Il server ha rifiutato la struttura EML ad annidamento ricorsivo a 2 livelli.")

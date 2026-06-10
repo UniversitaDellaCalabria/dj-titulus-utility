@@ -7,7 +7,8 @@ from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
 from reportlab.pdfgen import canvas
 
-from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusFileClient
+from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusFileClient, \
+    WSTitulusMessageBroker
 from titulus_utility.titulus_ws.utils import get_protocol_dict
 from . import conf as titulus_settings
 from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
@@ -687,3 +688,233 @@ def recupera_documenti(
             logger.error(f"Cannot get file {a} from Titulus!")
         files[a]=c_file
     return files
+
+
+def registra_ricevuta_documento(
+        nrecord,
+        infos,
+        type,
+        esito,
+        receipt_file_name,
+        receipt_file,
+        extract_cades=False,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        test=False,
+):
+    """
+    Associa e registra un file di notifica/ricevuta (es. PECh, flussi applicativi)
+    a un documento esistente su Titulus identificato da `nrecord`.
+
+    Gestisce l'estrazione delle credenziali e accetta il file in molteplici formati
+    (percorsi di file, byte crudi, oggetti Django UploadedFile o file-like).
+
+    Args:
+        nrecord (str): Identificativo univoco del documento in Titulus.
+        infos (str): Descrizione breve della notifica (es. 'notifica-ordinativo-xml').
+        type (str): Tipo di notifica (es. 'messaggi_esito_applicativo').
+        esito (str): Esito dell'operazione da registrare sul sistema.
+        receipt_file_name (str): Nome del file comprensivo di estensione (es. 'ricevuta.xml').
+        receipt_file (file-like/bytes/str/Path): Il contenuto o percorso del file di ricevuta.
+        extract_cades (bool, optional): Richiede l'estrazione della busta CAdES se presente. Defaults to False.
+        credential_ws_protocollo (CredentialWSProtocollo, optional): Istanza delle credenziali.
+        obj_to_credential (Model, optional): Oggetto Django correlato per ricavare le credenziali.
+        test (bool, optional): Se True, instrada la chiamata verso l'ambiente di test. Defaults to False.
+
+    Returns:
+        bool: True se la registrazione è avvenuta con successo.
+    """
+    logger.debug(f"Wrapper registra_ricevuta_documento invocato per il record: {nrecord}")
+
+    # 1. Risoluzione dinamica delle credenziali in stile Django
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+
+    valid_conf = credential_ws_protocollo and nrecord
+
+    if test:
+        logger.debug("Esecuzione in modalità TEST per il Message Broker.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE per il Message Broker.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Configurazione mancante o nrecord non valido per la registrazione della ricevuta.")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    # 2. Gestione flessibile e polimorfica del file di ricevuta
+    if hasattr(receipt_file, 'read'):
+        # Caso A: Oggetto file-like (es. UploadedFile di Django o open())
+        receipt_fopen = receipt_file
+        if hasattr(receipt_fopen, 'seek'):
+            receipt_fopen.seek(0)
+
+    elif isinstance(receipt_file, (str, Path)):
+        # Caso B: Stringa o oggetto Path che punta a un percorso locale
+        file_path = str(receipt_file)
+        if os.path.isfile(file_path):
+            with open(file_path, 'rb') as f:
+                receipt_fopen = BytesIO(f.read())
+        else:
+            raise FileNotFoundError(f"Il file di ricevuta specificato non esiste: {file_path}")
+
+    elif isinstance(receipt_file, bytes):
+        # Caso C: Byte crudi passati direttamente alla funzione
+        receipt_fopen = BytesIO(receipt_file)
+
+    else:
+        raise ValueError(
+            "Il parametro 'receipt_file' deve essere un oggetto file, "
+            "un percorso valido (str/Path) o dei byte crudi."
+        )
+
+    # Nota: Evitiamo l'uso di _assicura_formato_pdf per le ricevute,
+    # in quanto i messaggi di notifica di Titulus/CINECA sono prevalentemente file XML o p7m.
+
+    # 3. Inizializzazione del Broker e sottomissione SOAP
+    logger.info(f"[{nrecord}] Inizializzazione del WSTitulusMessageBroker")
+    broker = WSTitulusMessageBroker(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw
+    )
+
+    # Conversione in Base64
+    broker.encode_doc_receipt(
+        fopen=receipt_fopen,
+        name=receipt_file_name,
+        description=infos
+    )
+
+    # Registrazione effettiva sul documento tramite receiveMsgForDocument
+    success = broker.register_doc_receipt_to_titulus(
+        nrecord=nrecord,
+        infos=infos,
+        type=type,
+        esito=esito,
+        extract_cades=extract_cades
+    )
+
+    if success:
+        logger.info(f"[{nrecord}] Flusso di registrazione ricevuta completato con successo.")
+    return success
+
+
+def registra_ricevuta_eml_documento(
+        nrecord,
+        infos,
+        type,
+        esito,
+        receipt_file,
+        attachment_name,
+        email_body,
+        eml_filename="ricevuta.eml",
+        extract_cades=False,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        test=False,
+        email_subject=None,
+        email_from=None,
+        email_to=None,
+):
+    """
+    Genera dinamicamente in memoria un file .eml (composto da un testo e da un file allegato)
+    e lo registra come ricevuta/notifica su un documento Titulus esistente.
+
+    Args:
+        nrecord (str): Identificativo univoco del documento in Titulus.
+        infos (str): Descrizione breve della notifica (es. 'notifica-ordinativo-xml').
+        type (str): Tipo di notifica (es. 'messaggi_esito_applicativo').
+        esito (str): Esito dell'operazione da registrare sul sistema.
+        receipt_file (file-like/bytes/str/Path): Il file interno da allegare all'EML.
+        attachment_name (str): Nome che assumerà il file allegato all'interno dell'EML.
+        email_body (str): Testo del corpo dell'email.
+        eml_filename (str, optional): Nome del file .eml finale registrato. Defaults to "ricevuta.eml".
+        extract_cades (bool, optional): Estrazione busta CAdES. Defaults to False.
+        credential_ws_protocollo (CredentialWSProtocollo, optional): Istanza delle credenziali.
+        obj_to_credential (Model, optional): Oggetto Django per ricavare le credenziali.
+        test (bool, optional): Se True, usa l'ambiente di test. Defaults to False.
+        email_subject (str, optional): Oggetto personalizzato dell'email.
+        email_from (str, optional): Mittente personalizzato dell'email.
+        email_to (str, optional): Destinatario personalizzato dell'email.
+
+    Returns:
+        bool: True se la registrazione ha avuto successo.
+    """
+    logger.debug(f"Wrapper registra_ricevuta_eml_documento invocato per il record: {nrecord}")
+
+    # 1. Risoluzione dinamica delle credenziali Django
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+
+    valid_conf = credential_ws_protocollo and nrecord
+
+    if test:
+        logger.debug("Esecuzione in modalità TEST per il Message Broker (EML).")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE per il Message Broker (EML).")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Configurazione mancante o nrecord non valido per la registrazione della ricevuta EML.")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    # 2. Gestione polimorfica del file interno da allegare
+    if hasattr(receipt_file, 'read'):
+        receipt_fopen = receipt_file
+        if hasattr(receipt_fopen, 'seek'):
+            receipt_fopen.seek(0)
+    elif isinstance(receipt_file, (str, Path)):
+        file_path = str(receipt_file)
+        if os.path.isfile(file_path):
+            with open(file_path, 'rb') as f:
+                receipt_fopen = BytesIO(f.read())
+        else:
+            raise FileNotFoundError(f"Il file interno specificato non esiste: {file_path}")
+    elif isinstance(receipt_file, bytes):
+        receipt_fopen = BytesIO(receipt_file)
+    else:
+        raise ValueError("Il parametro 'receipt_file' deve essere un oggetto file, un percorso o byte crudi.")
+
+    # 3. Inizializzazione del Broker con i metadati opzionali dell'email
+    logger.info(f"[{nrecord}] Inizializzazione del WSTitulusMessageBroker per flusso EML")
+    broker = WSTitulusMessageBroker(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+        email_subject=email_subject,
+        email_from=email_from,
+        email_to=email_to
+    )
+
+    # Assemblaggio dell'EML e codifica Base64
+    broker.encode_eml_doc_receipt(
+        fopen=receipt_fopen,
+        attachment_name=attachment_name,
+        email_body=email_body,
+        eml_filename=eml_filename,
+        description=infos
+    )
+
+    # Registrazione effettiva su Titulus
+    success = broker.register_doc_receipt_to_titulus(
+        nrecord=nrecord,
+        infos=infos,
+        type=type,
+        esito=esito,
+        extract_cades=extract_cades
+    )
+
+    if success:
+        logger.info(f"[{nrecord}] Flusso di registrazione ricevuta EML completato con successo.")
+    return success

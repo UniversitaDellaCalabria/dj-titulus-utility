@@ -1,7 +1,10 @@
 import base64
 import logging
+import mimetypes
 import os
 import xml.etree.ElementTree as ET
+from email.message import EmailMessage
+from io import BytesIO
 
 from jinja2 import Template
 from requests import Session
@@ -10,8 +13,11 @@ from zeep import Client, Settings, xsd
 from zeep.transports import Transport
 
 from titulus_utility import conf as titulus_settings
+from titulus_utility.titulus_ws.attachment_bean_utility import SOAPPayloadMixin
 
 logger = logging.getLogger(__name__)
+
+
 
 
 class WSTitulusConnector(object):
@@ -28,6 +34,7 @@ class WSTitulusConnector(object):
         # Inizializzazione variabili zeep
         self.client = None
         self.service = None
+        self.namespaces = titulus_settings.PROTOCOL_NAMESPACES
 
     def connect(self):
         """Stabilisce la connessione con il Web Service SOAP tramite Zeep."""
@@ -56,7 +63,161 @@ class WSTitulusConnector(object):
         if not self.is_connected():
             self.connect()
 
-class WSTitulusFileClient(WSTitulusConnector):
+class WSTitulusMessageBroker(WSTitulusConnector, SOAPPayloadMixin):
+    """
+    Gestisce le operazioni di messaggistica e notifica di secondo livello
+    sul Web Service SOAP di Titulus (es. registrazione ricevute PECh/Flussi).
+    """
+
+    def __init__(self, wsdl_url, username, password,email_subject=None, email_from=None, email_to=None):
+        """
+        Inizializza il broker di messaggistica Titulus.
+        """
+        # Inizializza la classe base (WSTitulusConnector) che definisce self.namespaces
+        super().__init__(wsdl_url=wsdl_url, username=username, password=password)
+        self.receipt = None
+        self.email_subject = email_subject or 'Notifica Sistema - Registrazione Ricevuta'
+        self.email_from = email_from or 'titulus-broker@unical.it'
+        self.email_to = email_to or 'titulus-protocollo@unical.it'
+
+    def encode_eml_doc_receipt(self, fopen, attachment_name, email_body, eml_filename="ricevuta.eml",
+                               description="Notifica EML"):
+        """
+        Genera in memoria un file .eml contenente un corpo testo e un file allegato,
+        lo codifica in Base64 e lo imposta come `self.receipt`.
+
+        Args:
+            fopen (file-like/bytes): Il file (ricevuta originale, PDF, XML) da allegare all'EML.
+            attachment_name (str): Nome del file allegato dentro l'email (es. 'dati.xml').
+            email_body (str): Il testo che comporrà il corpo dell'email.
+            eml_filename (str, optional): Nome del file .eml finale che vedrà Titulus. Defaults to "ricevuta.eml".
+            description (str, optional): Descrizione per l'AttachmentBean. Defaults to "Notifica EML".
+        """
+        logger.info(f"Avvio generazione file EML in memoria: {eml_filename}")
+        self.assure_connection()
+
+        try:
+            # 1. Risoluzione polimorfica del file da allegare (legge sia bytes che file-like)
+            if hasattr(fopen, 'read'):
+                if hasattr(fopen, 'seek'):
+                    fopen.seek(0)
+                attachment_bytes = fopen.read()
+            elif isinstance(fopen, bytes):
+                attachment_bytes = fopen
+            else:
+                raise ValueError("Il parametro 'fopen' deve essere un oggetto file-like o bytes crudi.")
+
+            # 2. Costruzione della struttura MIME dell'email
+            msg = EmailMessage()
+            msg['Subject'] = self.email_subject
+            msg['From'] = self.email_from
+            msg['To'] = self.email_to
+
+            # Imposta il corpo del messaggio (Text/Plain)
+            msg.set_content(email_body)
+
+            # 3. Rilevamento automatico del MimeType dell'allegato
+            mime_type, _ = mimetypes.guess_type(attachment_name)
+            if mime_type is None:
+                mime_type = 'application/octet-stream'
+            main_type, sub_type = mime_type.split('/', 1)
+
+            # Aggiunge l'allegato all'email
+            msg.add_attachment(
+                attachment_bytes,
+                maintype=main_type,
+                subtype=sub_type,
+                filename=attachment_name
+            )
+
+            # 4. Serializzazione dell'intera email in un flusso di Byte (Formato .eml standard)
+            eml_bytes = msg.as_bytes()
+            logger.debug(f"File EML generato con successo. Dimensione: {len(eml_bytes)} byte.")
+
+            # 5. Passaggio dei byte generati al mixin di codifica standard
+            eml_stream = BytesIO(eml_bytes)
+            self.receipt = self.encode_file_base64(self.client, eml_stream, eml_filename, description)
+            logger.info(f"File EML '{eml_filename}' codificato in Base64 e caricato in self.receipt.")
+
+        except Exception as e:
+            logger.exception(f"Errore fatale durante la creazione o codifica del file EML {eml_filename}: {e}")
+            raise
+
+    def encode_doc_receipt(self, fopen, name, description):
+        """
+        Prepara e codifica in Base64 il file di notifica/ricevuta da inviare.
+        Il risultato viene memorizzato nell'attributo di istanza `self.receipt`.
+        """
+        logger.info(f"Avvio codifica payload per la ricevuta: {name}")
+        self.assure_connection()
+        try:
+            self.receipt = self.encode_file_base64(self.client, fopen, name, description)
+            logger.debug(f"Ricevuta '{name}' codificata e caricata in memoria.")
+        except Exception as e:
+            logger.exception(f"Errore fatale durante la conversione del file {name} in Base64: {e}")
+            raise
+
+    def register_doc_receipt_to_titulus(self, nrecord, infos, type, esito, extract_cades=False):
+        """
+        Associa il file di notifica precedentemente codificato a un documento Titulus.
+
+        Invia la richiesta al servizio SOAP `receiveMsgForDocument`. Se al record
+        sono legate delle copie, la notifica viene propagata automaticamente da Titulus.
+
+        Args:
+            nrecord (str): Identificativo univoco (id/nrecord) del documento in Titulus.
+            infos (str): Informazioni descrittive della notifica (es. 'notifica-ordinativo-xml').
+            type (str): Tipo di notifica (es. 'messaggi_esito_applicativo').
+            esito (str): Esito dell'operazione da registrare sul sistema.
+            extract_cades (bool, optional): Se True, estrae l'eventuale busta CAdES.
+                                            Defaults to False.
+
+        Returns:
+            bool: true in caso di successo
+        """
+        logger.info(f"[{nrecord}] Tentativo di registrazione notifica. Tipo: '{type}', Esito: '{esito}'")
+        self.assure_connection()
+
+        if self.receipt is None:
+            error_msg = f"[{nrecord}] Errore: nessuna ricevuta in memoria. Chiamare 'encode_doc_receipt' prima."
+            logger.error(error_msg)
+            raise Exception(error_msg)
+
+        ns0 = self.namespaces["ns0"]
+
+        try:
+            logger.debug(f"[{nrecord}] Recupero del tipo complesso {ns0}AttachmentBean")
+            attachment_bean_type = self.client.get_type(f'{ns0}AttachmentBean')
+            abean_to_send = attachment_bean_type(
+                content=self.receipt['content'],
+                fileName=self.receipt['filename'],
+                description=self.receipt['description']
+            )
+
+            logger.debug(f"[{nrecord}] Invocazione servizio SOAP receiveMsgForDocument")
+            receive_msg_response = self.service.receiveMsgForDocument(
+                id=nrecord,
+                notifyFile=abean_to_send,
+                infos=infos,
+                type=type,
+                esito=esito,
+                extractCades=extract_cades
+            )
+
+            if receive_msg_response:
+                xml_string = receive_msg_response if isinstance(receive_msg_response, str) else receive_msg_response._value_1
+                logger.info(f"[{nrecord}] Notifica registrata con successo su Titulus.")
+                logger.debug(f"[{nrecord}] Risposta raw da receiveMsgForDocument:\n{xml_string}")
+                return True
+            else:
+                logger.warning(f"[{nrecord}] La chiamata ha restituito una risposta vuota dal server.")
+                return None
+
+        except Exception as e:
+            logger.exception(f"[{nrecord}] Errore fatale durante l'esecuzione di receiveMsgForDocument: {e}")
+            raise
+
+class WSTitulusFileClient(WSTitulusConnector,SOAPPayloadMixin):
     def __init__(self,
                  wsdl_url,
                  username,
@@ -247,7 +408,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
                                    params=xsd.SkipValue)
 
 
-class WSTitulusClient(WSTitulusQueryClient):
+class WSTitulusClient(WSTitulusQueryClient,SOAPPayloadMixin):
     """
     Client per la logica di business del Web Service Titulus.
 
@@ -316,7 +477,6 @@ class WSTitulusClient(WSTitulusQueryClient):
         """
         logger.info(f"Esecuzione salvataggio (bozza: {is_bozza}, force: {force})")
         self.assure_connection()
-        namespaces = titulus_settings.PROTOCOL_NAMESPACES
 
         if not force:
             if not is_bozza and (self.numero or self.anno):
@@ -328,8 +488,8 @@ class WSTitulusClient(WSTitulusQueryClient):
                 logger.error(error_msg)
                 raise Exception(error_msg)
 
-        ns0 = namespaces["ns0"]
-        ns2 = namespaces["ns2"]
+        ns0 = self.namespaces["ns0"]
+        ns2 = self.namespaces["ns2"]
         try:
             self.client.get_type(f'{ns0}AttachmentBean')
             attachmentBeans_type = self.client.get_type(f'{ns2}ArrayOf_tns1_AttachmentBean')
@@ -376,42 +536,10 @@ class WSTitulusClient(WSTitulusQueryClient):
                 'description': None,
                 'filename': None}
 
-    def aggiungi_allegato(self,
-                          fopen,
-                          nome,
-                          descrizione,
-                          is_doc_princ=False,
-                          test=False):
-        """
-            Codifica un file in Base64 e lo aggiunge alla lista degli allegati SOAP.
-
-            Args:
-                fopen (file-like): Il file aperto in modalità binaria (rb).
-                nome (str): Nome del file con estensione.
-                descrizione (str): Descrizione dell'allegato.
-                is_doc_princ (bool): Se True, l'allegato viene inserito in posizione 0 (Documento Principale).
-
-            Returns:
-                dict: L'allegato codificato pronto per Titulus.
-        """
-        logger.debug(f"Elaborazione allegato: {nome} (Principale: {is_doc_princ})")
-        namespaces = titulus_settings.PROTOCOL_NAMESPACES
-        ns1 = namespaces["ns1"]
-
-        ext = os.path.splitext(nome)[1]
-        if not ext:
-            error_msg = ("'nome' deve avere l'estensione (es: .pdf) per evitare l'errore xml -201 da Titulus!")
-            logger.error(error_msg)
-            raise Exception(error_msg)
-
+    def aggiungi_allegato(self, fopen, nome, descrizione, is_doc_princ=False, test=False):
         self.assure_connection()
         try:
-            content_type = self.client.get_type(f'{ns1}base64Binary')
-            content = content_type(fopen.read())
-            allegato_dict = self._get_allegato_dict()
-            allegato_dict['content'] = content
-            allegato_dict['description'] = descrizione
-            allegato_dict['filename'] = nome
+            allegato_dict = self.encode_file_base64(self.client, fopen, nome, descrizione)
 
             if is_doc_princ:
                 self.allegati.insert(0, allegato_dict)
