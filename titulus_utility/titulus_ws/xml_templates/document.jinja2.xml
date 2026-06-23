@@ -66,4 +66,8 @@
             </notifiche>
         </extra>
     {% endif %}
+
+    {% if href%}
+        <link_interno href="{{ href }}"></link_interno>
+    {% endif %}
 </doc>

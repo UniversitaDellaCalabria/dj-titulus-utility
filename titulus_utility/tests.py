@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from django.test import TestCase
 from django.conf import settings
 from unittest.mock import MagicMock
@@ -19,15 +20,18 @@ class TitulusIntegrationTests(TestCase):
         self.mock_user.taxpayer_id = titulus_settings.FISCAL_CODE_USER_TEST
         self.mock_user.email = titulus_settings.EMAIL_USER_TEST
 
-        # 2. Mockiamo le configurazioni DB 
+        # 2. Mockiamo le configurazioni DB
         self.mock_cred = MagicMock()
         self.mock_conf = MagicMock()
 
         # 3. Creiamo un file temporaneo reale da usare come allegato principale
         self.test_file_content = b"Contenuto del file di test generato automaticamente."
-        self.test_file_name = "documento_test"
+        self.test_file_name = "documento_test.pdf"
         self.attachment_folder = titulus_settings.ATTACHMENT_FOLDER_TEST
-        self.test_repertorio=Repertorio(repertorio="Contratti di Lavoro ARU",code="RCARU")
+        self.test_repertorio = Repertorio(repertorio="Contratti di Lavoro ARU", code="RCARU")
+
+        # 4. Generiamo la data e ora corrente per appenderla dinamicamente ai subject/infos
+        self.current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     def test_01_connessione_diretta_client(self):
         """
@@ -43,10 +47,9 @@ class TitulusIntegrationTests(TestCase):
         client.assure_connection()
         self.assertTrue(client.is_connected(), "Il client non è riuscito a connettersi a Titulus.")
 
-
     def _get_test_attachments(self):
         """
-        Legge tutti i file presenti nella cartella di test e restituisce 
+        Legge tutti i file presenti nella cartella di test e restituisce
         la lista dei nomi file da passare ai services.
         """
         folder_path = os.path.join(settings.MEDIA_ROOT, self.attachment_folder)
@@ -62,12 +65,13 @@ class TitulusIntegrationTests(TestCase):
     def test_01_arrivo_protocollo_senza_allegati(self):
         risultato = services.protocolla_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 1 - Arrivo, Protocollo, No Allegati",
+            subject=f"TEST INTEGRAZIONE 1 - Arrivo, Protocollo, No Allegati - {self.current_time}",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
             principal_file_name=self.test_file_name,
             principal_file=self.test_file_content,
-            test=True
+            test=True,
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn("numero", risultato)
         self.assertIsNotNone(risultato["numero"])
@@ -78,15 +82,52 @@ class TitulusIntegrationTests(TestCase):
 
         risultato = services.protocolla_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 2 - Arrivo, Protocollo, Con Allegati",
+            subject=f"TEST INTEGRAZIONE 2 - Arrivo, Protocollo, Con Allegati + zip - {self.current_time}",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
             principal_file_name=self.test_file_name,
             principal_file=self.test_file_content,
             attachments=attachments,
             attachments_folder=self.attachment_folder,
-            test=True
+            test=True,
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
+        self.assertIn("numero", risultato)
+        self.assertIsNotNone(risultato["numero"])
+
+    def test_02_b_arrivo_protocollo_con_zip_principale(self):
+        """
+        Variante del test_02 in cui il file ZIP reale viene impostato
+        come documento principale del protocollo.
+        """
+        import os
+        from django.conf import settings
+
+        # 1. Recuperiamo gli allegati secondari come nel test originale
+        attachments = self._get_test_attachments()
+
+        # 2. Costruiamo il percorso sicuro verso lo ZIP da usare come principale
+        zip_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
+        self.assertTrue(os.path.exists(zip_path), f"File ZIP principale non trovato: {zip_path}")
+
+        # 3. Leggiamo lo ZIP in modalità binaria
+        with open(zip_path, "rb") as f:
+            zip_principal_content = f.read()
+
+        risultato = services.protocolla_arrivo(
+            user=self.mock_user,
+            subject=f"TEST INTEGRAZIONE 2B - Arrivo, ZIP principale + Allegati - {self.current_time}",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name="ziptesst.zip",
+            principal_file=zip_principal_content,  # Passiamo i byte dello ZIP
+            attachments=attachments,
+            attachments_folder=self.attachment_folder,
+            test=True,
+            # Manteniamo il tuo parametro del flusso d'esempio
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        )
+
         self.assertIn("numero", risultato)
         self.assertIsNotNone(risultato["numero"])
 
@@ -96,7 +137,7 @@ class TitulusIntegrationTests(TestCase):
 
     def test_03_partenza_protocollo_senza_allegati(self):
         risultato = services.protocolla_partenza(
-            subject="TEST INTEGRAZIONE 3 - Partenza, Protocollo, No Allegati",
+            subject=f"TEST INTEGRAZIONE 3 - Partenza, Protocollo, No Allegati - {self.current_time}",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
             principal_file_name=self.test_file_name,
@@ -110,7 +151,7 @@ class TitulusIntegrationTests(TestCase):
         attachments = self._get_test_attachments()
 
         risultato = services.protocolla_partenza(
-            subject="TEST INTEGRAZIONE 4 - Partenza, Protocollo, Con Allegati",
+            subject=f"TEST INTEGRAZIONE 4 - Partenza, Protocollo, Con Allegati - {self.current_time}",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
             principal_file_name=self.test_file_name,
@@ -129,7 +170,7 @@ class TitulusIntegrationTests(TestCase):
     def test_05_arrivo_bozza_iter_senza_allegati(self):
         risultato = services.avvia_iter_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 5 - Arrivo, Bozza/Iter, No Allegati",
+            subject=f"TEST INTEGRAZIONE 5 - Arrivo, Bozza/Iter, No Allegati - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -144,7 +185,7 @@ class TitulusIntegrationTests(TestCase):
     def test_05_arrivo_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 5 - Arrivo, Bozza/Iter, No Allegati e Notifica",
+            subject=f"TEST INTEGRAZIONE 5 - Arrivo, Bozza/Iter, No Allegati e Notifica - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -162,7 +203,7 @@ class TitulusIntegrationTests(TestCase):
 
         risultato = services.avvia_iter_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 6 - Arrivo, Bozza/Iter, Con Allegati",
+            subject=f"TEST INTEGRAZIONE 6 - Arrivo, Bozza/Iter, Con Allegati - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -180,7 +221,7 @@ class TitulusIntegrationTests(TestCase):
 
         risultato = services.avvia_iter_arrivo(
             user=self.mock_user,
-            subject="TEST INTEGRAZIONE 6 - Arrivo, Bozza/Iter, Con Allegati e Notifica",
+            subject=f"TEST INTEGRAZIONE 6 - Arrivo, Bozza/Iter, Con Allegati e Notifica - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -193,13 +234,14 @@ class TitulusIntegrationTests(TestCase):
         )
         self.assertIn("nrecord", risultato)
         self.assertIsNotNone(risultato["nrecord"])
+
     # ==========================================
     # CASI PARTENZA - BOZZA E ITER
     # ==========================================
 
     def test_07_partenza_bozza_iter_senza_allegati(self):
         risultato = services.avvia_iter_partenza(
-            subject="TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati",
+            subject=f"TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -213,7 +255,7 @@ class TitulusIntegrationTests(TestCase):
 
     def test_07_1_partenza_bozza_iter_senza_allegati(self):
         risultato = services.avvia_iter_partenza(
-            subject="TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati REPERTORIO",
+            subject=f"TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati REPERTORIO - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -228,7 +270,7 @@ class TitulusIntegrationTests(TestCase):
 
     def test_07_partenza_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_partenza(
-            subject="TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati e Notifica",
+            subject=f"TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati e Notifica - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -244,7 +286,7 @@ class TitulusIntegrationTests(TestCase):
         attachments = self._get_test_attachments()
 
         risultato = services.avvia_iter_partenza(
-            subject="TEST INTEGRAZIONE 8 - Partenza, Bozza/Iter, Con Allegati",
+            subject=f"TEST INTEGRAZIONE 8 - Partenza, Bozza/Iter, Con Allegati - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -262,7 +304,7 @@ class TitulusIntegrationTests(TestCase):
         attachments = self._get_test_attachments()
 
         risultato = services.avvia_iter_partenza(
-            subject="TEST INTEGRAZIONE 8 - Partenza, Bozza/Iter, Con Allegati e Notifica",
+            subject=f"TEST INTEGRAZIONE 8 - Partenza, Bozza/Iter, Con Allegati e Notifica - {self.current_time}",
             voce_indice="Iter Approva e Firma",
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
@@ -277,7 +319,6 @@ class TitulusIntegrationTests(TestCase):
         self.assertIsNotNone(risultato["nrecord"])
 
     def test_09_recupera_numero_protocollo(self):
-
         risultato = services.recupera_numero_protocollo(
             credential_ws_protocollo=self.mock_cred,
             nrecord="000063688-UCALPRG-d37b386c-c10a-4ba3-8e27-e7020d995b47",
@@ -286,7 +327,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIsNotNone(risultato)
 
     def test_10_get_attachments(self):
-        risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,nrecord="000063964-UCALPRG-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",attachments=["MSTLNE94M46C710M.pdf"],test=True)
+        risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,
+                                                nrecord="000063964-UCALPRG-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",
+                                                attachments=["MSTLNE94M46C710M.pdf"], test=True)
         self.assertIsNotNone(risultato)
         print(risultato)
 
@@ -300,7 +343,7 @@ class TitulusIntegrationTests(TestCase):
         Verifica il funzionamento end-to-end del modulo WSTitulusMessageBroker.
         """
         # Utilizziamo lo stesso nrecord di test valido e già presente nell'ambiente CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
         # Generiamo al volo un XML di ricevuta simulato in byte
         dummy_receipt_content = b"<notifica><stato>CONSEGNATO</stato><operazione>TEST-INTEGRAZIONE</operazione></notifica>"
@@ -308,7 +351,7 @@ class TitulusIntegrationTests(TestCase):
 
         risultato = services.registra_ricevuta_documento(
             nrecord=test_nrecord,
-            infos="Notifica di Consegna PEC - Test Automatico Integrazione",
+            infos=f"Notifica di Consegna PEC - Test Automatico Integrazione - {self.current_time}",
             type="messaggio_ricezione_flusso",
             esito="OK",
             receipt_file_name=dummy_receipt_name,
@@ -327,7 +370,7 @@ class TitulusIntegrationTests(TestCase):
         Verifica che il MessageBroker carichi e associ correttamente il documento.
         """
         # Utilizziamo l'nrecord di test valido sul server CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
 
         # Generiamo una struttura minima ma binariamente valida di un file PDF
@@ -346,7 +389,7 @@ class TitulusIntegrationTests(TestCase):
 
         risultato = services.registra_ricevuta_documento(
             nrecord=test_nrecord,
-            infos="Notifica di Avvenuta Consegna - Allegato PDF",
+            infos=f"Notifica di Avvenuta Consegna - Allegato PDF - {self.current_time}",
             type="messaggi_esito_applicativo",
             esito="OK",
             receipt_file_name=dummy_pdf_name,
@@ -365,7 +408,7 @@ class TitulusIntegrationTests(TestCase):
         e il suo corretto caricamento e associazione su un documento Titulus esistente.
         """
         # Utilizziamo lo stesso nrecord di test valido sul server sandbox CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
 
 
@@ -385,7 +428,7 @@ class TitulusIntegrationTests(TestCase):
         # Invochiamo il nuovo service wrapper
         risultato = services.registra_ricevuta_eml_documento(
             nrecord=test_nrecord,
-            infos="Messaggio di Notifica PEC Complesso (.eml)",
+            infos=f"Messaggio di Notifica PEC Complesso (.eml) - {self.current_time}",
             type="messaggio_ricezione_flusso",
             esito="OK",
             receipt_file=inner_xml_content,  # Diventa l'allegato interno dell'EML
@@ -413,7 +456,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
         # Costruiamo il percorso assoluto in modo sicuro.
         # Se 'media' si trova nella radice del tuo progetto Django:
@@ -442,10 +485,10 @@ class TitulusIntegrationTests(TestCase):
         # Invochiamo il service passandogli i byte del file reale appena letti
         risultato = services.registra_ricevuta_eml_documento(
             nrecord=test_nrecord,
-            infos="Notifica Mail EML con PDF reale prelevato da disco",
+            infos=f"Notifica Mail EML con PDF reale prelevato da disco - {self.current_time}",
             type="messaggi_esito_applicativo",
             esito="OK",
-            receipt_file=real_pdf_content,  # <--- Passiamo i byte del tuo file reale
+            receipt_file=real_pdf_content,
             attachment_name=inner_pdf_name,
             email_body=corpo_email_testo,
             eml_filename="notifica_con_pdf_reale.eml",
@@ -472,7 +515,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
         # Costruzione del percorso sicuro verso il file ZIP su disco
         file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
@@ -490,7 +533,7 @@ class TitulusIntegrationTests(TestCase):
         # Invocazione del servizio di registrazione diretta
         risultato = services.registra_ricevuta_documento(
             nrecord=test_nrecord,
-            infos="Archivio ZIP di Log - Sottomissione Diretta",
+            infos=f"Archivio ZIP di Log - Sottomissione Diretta - {self.current_time}",
             type="messaggi_esito_applicativo",
             esito="OK",
             receipt_file_name=zip_file_name,
@@ -512,7 +555,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo lo stesso nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
         # Costruzione del percorso sicuro verso il file ZIP su disco
         file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
@@ -537,7 +580,7 @@ class TitulusIntegrationTests(TestCase):
         # Invocazione del servizio che incapsula lo ZIP nell'EML
         risultato = services.registra_ricevuta_eml_documento(
             nrecord=test_nrecord,
-            infos="Notifica Mail EML con allegato archivio ZIP di log",
+            infos=f"Notifica Mail EML con allegato archivio ZIP di log - {self.current_time}",
             type="messaggio_ricezione_flusso",
             esito="OK",
             receipt_file=zip_content,  # I byte del file ZIP finiranno dentro l'EML
@@ -555,8 +598,7 @@ class TitulusIntegrationTests(TestCase):
         # Verifica che il server SOAP di Titulus accetti il pacchetto MIME (.eml) contenente lo ZIP
         self.assertTrue(risultato, "Il service ha fallito l'invio della ricevuta EML con ZIP inglobato.")
 
-
-# ==========================================
+    # ==========================================
     # CASI CON ANNIDAMENTO EML (1 E 2 LIVELLI)
     # ==========================================
 
@@ -568,7 +610,7 @@ class TitulusIntegrationTests(TestCase):
         from email.message import EmailMessage
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
         # 1. Costruiamo l'email INTERNA (l'allegato .eml) con il proprio testo indipendente
         inner_msg = EmailMessage()
@@ -582,7 +624,6 @@ class TitulusIntegrationTests(TestCase):
         # Seralizziamo l'email interna in byte crudi
         inner_eml_bytes = inner_msg.as_bytes()
 
-        # 2. Definiamo il testo che comparirà nel corpo dell'email ESTERNA (contenitore)
         corpo_email_esterna = (
             "Si trasmette in allegato la notifica telematica inoltrata.\n"
             "Il file .eml allegato contiene i dettagli nativi del messaggio originario."
@@ -592,7 +633,7 @@ class TitulusIntegrationTests(TestCase):
         # Invochiamo il servizio: prenderà i byte dell'email interna e li incapsulerà nell'email principale
         risultato = services.registra_ricevuta_eml_documento(
             nrecord=test_nrecord,
-            infos="Notifica Mail EML contenente allegato EML interno",
+            infos=f"Notifica Mail EML contenente allegato EML interno - {self.current_time}",
             type="messaggio_ricezione_flusso",
             esito="OK",
             receipt_file=inner_eml_bytes,                     # Byte dell'email interna
@@ -616,7 +657,7 @@ class TitulusIntegrationTests(TestCase):
         """
         from email.message import EmailMessage
 
-        test_nrecord = "000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4"
+        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
 
 
         # --- LIVELLO 2: L'email più profonda (Interna) ---
@@ -656,7 +697,7 @@ class TitulusIntegrationTests(TestCase):
         # Il service prenderà middle_eml_bytes (che ha già dentro il livello 2) e lo impacchetterà nel livello 0
         risultato = services.registra_ricevuta_eml_documento(
             nrecord=test_nrecord,
-            infos="Notifica Mail EML con 2 livelli di annidamento EML ricorsivi",
+            infos=f"Notifica Mail EML con 2 livelli di annidamento EML ricorsivi - {self.current_time}",
             type="messaggio_ricezione_flusso",
             esito="OK",
             receipt_file=middle_eml_bytes,                 # Passiamo l'involucro intermedio (Livello 1)
@@ -671,3 +712,49 @@ class TitulusIntegrationTests(TestCase):
 
         # Verifica che Titulus accetti l'annidamento ricorsivo rfc822 senza sollevare eccezioni
         self.assertTrue(risultato, "Il server ha rifiutato la struttura EML ad annidamento ricorsivo a 2 livelli.")
+
+    def test_19_arrivo_protocollo_formati_frequenti_da_cartella(self):
+        """
+        Testa la protocollazione in arrivo iterando su tutti i file reali
+        presenti nella cartella 'media/principal_file_test'.
+        Verifica che il motore di normalizzazione riconosca e accetti
+        correttamente i formati fisici (docx, xml, p7m, png, ecc.).
+        """
+        import os
+        from django.conf import settings
+
+        # Definiamo il percorso della cartella contenente i file fisici
+        folder_path = os.path.join(settings.BASE_DIR, "media", "principal_file_test")
+
+        # Controllo preventivo: verifichiamo che la cartella esista
+        self.assertTrue(os.path.exists(folder_path), f"Cartella non trovata al percorso: {folder_path}")
+
+        # Recuperiamo la lista di tutti i file al suo interno
+        test_files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+
+        # Assicuriamoci che ci sia almeno un file su cui iterare
+        self.assertTrue(len(test_files) > 0, "Nessun file trovato nella cartella 'principal_file_test'.")
+
+        # Iniziamo l'iterazione su ogni file
+        for filename in test_files:
+            file_path = os.path.join(folder_path, filename)
+
+            # Leggiamo i byte grezzi del file reale
+            with open(file_path, "rb") as f:
+                file_content = f.read()
+
+            # Inviamo il file a Titulus
+            risultato = services.protocolla_arrivo(
+                user=self.mock_user,
+                subject=f"TEST INTEGRAZIONE 19 - Formato {filename} - {self.current_time}",
+                credential_ws_protocollo=self.mock_cred,
+                configuration_ws_protocollo=self.mock_conf,
+                principal_file_name=filename,
+                principal_file=file_content,
+                test=True,
+                linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            )
+
+            # Verifichiamo che Titulus abbia accettato questo specifico formato senza corrompersi
+            self.assertIn("numero", risultato, f"Protocollazione fallita per il file: {filename}")
+            self.assertIsNotNone(risultato["numero"], f"Numero di protocollo nullo per il file: {filename}")

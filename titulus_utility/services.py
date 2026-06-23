@@ -5,55 +5,14 @@ from pathlib import Path
 
 from django.utils.translation import gettext_lazy as _
 from jinja2 import Template
-from reportlab.pdfgen import canvas
 
 from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusFileClient, \
     WSTitulusMessageBroker
-from titulus_utility.titulus_ws.utils import get_protocol_dict
+from titulus_utility.titulus_ws.utils import get_protocol_dict, normalize_attachment
 from . import conf as titulus_settings
 from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
 
 logger = logging.getLogger(__name__)
-
-
-def _assicura_formato_pdf(contenuto):
-    """
-    Verifica se il contenuto è un PDF. Se è una semplice stringa/testo,
-    lo converte in un PDF valido in memoria usando ReportLab.
-
-    Utile per prevenire l'errore "ISO 32000-1" di Titulus che si verifica
-    quando si forza l'estensione '.pdf' su file che binariamente non lo sono.
-    """
-    logger.debug("Verifica della conformità del contenuto al formato PDF.")
-    # Se arriva come stringa, la codifichiamo in byte
-    if isinstance(contenuto, str):
-        contenuto = contenuto.encode('utf-8')
-
-    # Controlliamo i "magic bytes": un PDF inizia sempre con %PDF
-    if contenuto.startswith(b'%PDF'):
-        logger.debug("Magic bytes '%PDF' rilevati. Il contenuto è un file PDF valido.")
-        return contenuto  # È già un PDF valido, non facciamo nulla!
-
-    # Se non è un PDF, creiamo un PDF al volo con il testo ricevuto
-    logger.warning("Il file non è un PDF. Avvio conversione automatica in memoria tramite canvas.")
-    testo_str = contenuto.decode('utf-8', errors='ignore')
-
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer)
-    testo_pdf = p.beginText()
-    testo_pdf.setTextOrigin(50, 800)  # Margini x, y
-    testo_pdf.setFont("Helvetica", 12)
-
-    # Scriviamo riga per riga per supportare gli "a capo"
-    for linea in testo_str.split('\n'):
-        testo_pdf.textLine(linea)
-
-    p.drawText(testo_pdf)
-    p.showPage()
-    p.save()
-
-    logger.debug("Conversione da testo a PDF completata con successo.")
-    return buffer.getvalue()
 
 
 def _esegui_flusso_protocollo(
@@ -76,6 +35,7 @@ def _esegui_flusso_protocollo(
         method_notifica,
         voce_indice=None,
         repertorio=None,
+        linked_nrecord=None
 ):
     """
     Funzione core per gestire l'intero flusso di comunicazione con Titulus.
@@ -84,7 +44,7 @@ def _esegui_flusso_protocollo(
     1. Reperire le configurazioni (provenienti dai modelli in `models.py`).
     2. Creare il payload corretto invocando `utils.get_protocol_dict()`.
     3. Istanziate il client SOAP `Protocollo` (da `protocollo.py`).
-    4. Validare e iniettare gli allegati.
+    4. Validare, normalizzare e iniettare gli allegati tramite `normalize_attachment`.
     5. Richiedere la protocollazione o l'iter ed eventualmente la fascicolazione.
     """
     logger.info(f"Avvio _esegui_flusso_protocollo. Tipo: {tipo}, Azione: {azione}, Test: {test}")
@@ -96,7 +56,7 @@ def _esegui_flusso_protocollo(
                   encoding=titulus_settings.PROT_DOC_ENCODING) as f:
             prot_template = f.read()
 
-    # fix zeep key words issue
+    # Fix zeep keywords issue
     subject = subject.upper()
 
     if test:
@@ -175,7 +135,8 @@ def _esegui_flusso_protocollo(
         cod_repertorio = repertorio.code
     else:
         cod_repertorio = None
-    # Costruiamo il dizionario base combinandolo con i riferimenti esterni (che dipendono da arrivo/partenza)
+
+    # Costruiamo il dizionario base combinandolo con i riferimenti esterni
     logger.debug("Creazione payload tramite get_protocol_dict (da utils.py)")
     protocol_kwargs = dict(
         tipo=tipo,
@@ -194,7 +155,7 @@ def _esegui_flusso_protocollo(
         email_ufficio=prot_email,
         titolario="",
         cod_titolario=prot_titolario,
-        num_allegati = len(attachments),
+        num_allegati=len(attachments),
         fascicolo_num=prot_fascicolo_num,
         fascicolo_anno=prot_fascicolo_anno,
         rif_interni_cc=lista_cc,
@@ -203,6 +164,7 @@ def _esegui_flusso_protocollo(
         label_notifica=label_notifica,
         method_notifica=method_notifica,
         auth_notifica=notification_auth,
+        linked_nrecord=linked_nrecord,
         **rif_esterno_data
     )
 
@@ -221,75 +183,60 @@ def _esegui_flusso_protocollo(
     )
 
     logger.info(f"Gestione file principale richiesta per l'oggetto: {subject}")
-    # --- GESTIONE FLESSIBILE DEL FILE PRINCIPALE ---
-    if hasattr(principal_file, 'read'):
-        # CASO 1: Oggetto "file-like"
-        # (es. request.FILES['doc'], un campo FileField di Django, o un file aperto)
-        docPrinc = principal_file
-        if hasattr(docPrinc, 'seek'):
-            docPrinc.seek(0)
 
+    # =========================================================================
+    # --- 1. RISOLUZIONE INIZIALE POLIMORFICA DEL FILE PRINCIPALE ---
+    # =========================================================================
+    if hasattr(principal_file, 'read'):
+        doc_princ_stream = principal_file
+        if hasattr(doc_princ_stream, 'seek'):
+            doc_princ_stream.seek(0)
     elif isinstance(principal_file, (str, Path)):
-        # CASO 2: Percorso del file (Stringa classica o oggetto pathlib.Path)
         file_path = str(principal_file)
         if os.path.isfile(file_path):
             with open(file_path, 'rb') as f:
-                docPrinc = BytesIO(f.read())
+                doc_princ_stream = BytesIO(f.read())
         else:
             raise FileNotFoundError(f"Il file specificato non esiste: {file_path}")
-
     elif isinstance(principal_file, bytes):
-        # CASO 3: Byte crudi generati al volo
-        docPrinc = BytesIO(principal_file)
-
+        doc_princ_stream = BytesIO(principal_file)
     else:
         raise ValueError(
-            "Il parametro 'principal_file' deve essere un oggetto file (es. Django File/UploadedFile), "
-            "un percorso valido (str o Path) o dei byte crudi."
+            "Il parametro 'principal_file' deve essere un oggetto file, un percorso (str/Path) o dei byte crudi."
         )
-    # -----------------------------------------------
-    # --- TRASFORMAZIONE AUTOMATICA IN PDF ---
-    # Leggiamo i primi 4 byte per verificare la firma binaria del file
-    magic_bytes = docPrinc.read(4)
-    docPrinc.seek(0)  # Riportiamo il puntatore all'inizio
 
-    if magic_bytes != b'%PDF':
-        logger.info("Il documento principale non è un PDF. Conversione forzata in corso.")
-        # Non è un PDF (es. è b"Test" o un file di testo semplice).
-        # Leggiamo tutto il contenuto grezzo...
-        contenuto_grezzo = docPrinc.read()
-
-        # ...lo trasformiamo in un VERO file PDF...
-        pdf_bytes = _assicura_formato_pdf(contenuto_grezzo)
-
-        # ...e rimpiazziamo docPrinc con il nuovo PDF in memoria!
-        docPrinc = BytesIO(pdf_bytes)
-    # -----------------------------------------------
-    if not principal_file_name.lower().endswith('.pdf'):
-        full_principal_name = f"{principal_file_name}.pdf"
-    else:
-        full_principal_name = principal_file_name
-    wsclient.aggiungi_docPrinc(
-        fopen=docPrinc, nome_doc=full_principal_name, tipo_doc=full_principal_name
+    # =========================================================================
+    # --- 2. PIPELINE DI NORMALIZZAZIONE E SALVAGUARDIA (STRUTTURA/ESTENSIONE) ---
+    # =========================================================================
+    # Sfrutta l'euristica della funzione per rimediare ad estensioni mancanti o errate
+    doc_princ_stream, full_principal_name = normalize_attachment(
+        fopen=doc_princ_stream,
+        filename=principal_file_name
     )
 
-    # attachments
+    # Iniezione definitiva del file principale normalizzato nel client SOAP
+    wsclient.aggiungi_docPrinc(
+        fopen=doc_princ_stream,
+        nome_doc=full_principal_name,
+        tipo_doc=full_principal_name
+    )
+
+    # =========================================================================
+    # --- 3. GESTIONE ALLEGATI SECONDARI ---
+    # =========================================================================
     if attachments:
         logger.info(f"Rilevati {len(attachments)} allegati aggiuntivi. Caricamento in corso.")
         for v in attachments:
-            # 1. Costruiamo il percorso in modo sicuro e cross-platform
             file_path = os.path.join(attachments_folder, v)
-
-            # 2. Apriamo il file e lo passiamo direttamente al client
             with open(file_path, "rb") as f:
                 wsclient.aggiungi_allegato(
                     nome=v,
-                    descrizione=v,#subject,
+                    descrizione=v,
                     fopen=f,
                     test=test
                 )
 
-    # Esecuzione dell'azione specifica
+    # Esecuzione dell'azione specifica (Protocollo o attivazione dell'Iter)
     logger.debug(f"Chiamata a wsclient per azione: {azione}")
     if azione == 'protocolla':
         wsclient.protocolla(test=test)
@@ -308,7 +255,6 @@ def _esegui_flusso_protocollo(
 
     # Fascicolazione separata
     if titulus_settings.FASCICOLAZIONE_SEPARATA and prot_fascicolo_num:
-        # Recupera sia il numero (se protocollato) che nrecord (se bozza/iter)
         logger.info("Fascicolazione separata attiva. Avvio processo.")
         doc_num_prot = getattr(wsclient, 'numero', '')
         doc_nrecord = getattr(wsclient, 'nrecord', '')
@@ -318,7 +264,6 @@ def _esegui_flusso_protocollo(
                 fasc_template_str = file.read()
 
             jinja_fasc_template = Template(fasc_template_str)
-
             fasc = jinja_fasc_template.render(
                 fascicolo_physdoc="",
                 fascicolo_nrecord="",
@@ -330,8 +275,6 @@ def _esegui_flusso_protocollo(
             )
 
             wsclient.fascicolaDocumento(fasc)
-
-            # Identificativo per i log: usa il numero se presente, altrimenti nrecord
             doc_id_for_log = doc_num_prot if doc_num_prot else doc_nrecord
             msg = f"Fascicolazione avvenuta: {prot_fascicolo_num} in {doc_id_for_log}"
             logger.info(msg)
@@ -345,8 +288,6 @@ def _esegui_flusso_protocollo(
         logger.info(msg)
 
     return principal_file_result
-
-
 # ==============================================================================================
 # WRAPPERS PUBBLICI (Semplificati e Rinominati)
 # ==============================================================================================
@@ -366,7 +307,8 @@ def protocolla_arrivo(
         test=False,
         label_notifica=None,
         method_notifica=None,
-        repertorio=None):
+        repertorio=None,
+        linked_nrecord=None):
     """
     Invia un documento da protocollare "in arrivo" a Titulus.
     Usa gli attributi dell'utente Django (user) come riferimento esterno mittente.
@@ -406,7 +348,8 @@ def protocolla_arrivo(
         test=test,
         label_notifica=label_notifica,
         method_notifica=method_notifica,
-        repertorio=repertorio
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
     )
 
 
@@ -427,7 +370,8 @@ def avvia_iter_arrivo(
         invia_notifica=False,
         label_notifica='Invio notifica fine ITER',
         method_notifica='POST',
-        repertorio=None):
+        repertorio=None,
+        linked_nrecord=None):
     """
     Salva il documento "in arrivo" in stato "bozza" e avvia il relativo Iter
     passando il parametro `voce_indice` (se mappato nei settings).
@@ -471,7 +415,8 @@ def avvia_iter_arrivo(
         voce_indice=voce_indice,
         label_notifica=label_notifica,
         method_notifica=method_notifica,
-        repertorio=repertorio
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
     )
 
 
@@ -493,7 +438,8 @@ def protocolla_partenza(
         test=False,
         label_notifica=None,
         method_notifica=None,
-        repertorio=None
+        repertorio=None,
+        linked_nrecord=None
 ):
     """
     Protocolla un documento in "partenza". Riceve direttamente i dati anagrafici
@@ -537,7 +483,8 @@ def protocolla_partenza(
         attachments=attachments,
         test=test, label_notifica=label_notifica,
         method_notifica=method_notifica,
-        repertorio=repertorio
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
 
     )
 
@@ -562,7 +509,8 @@ def avvia_iter_partenza(
         invia_notifica=False,
         label_notifica='Invio notifica fine ITER',
         method_notifica='POST',
-        repertorio=None
+        repertorio=None,
+        linked_nrecord=None
 ):
     """
     Salva il documento "in partenza" in stato "bozza" e avvia il relativo Iter
@@ -606,7 +554,8 @@ def avvia_iter_partenza(
         voce_indice=voce_indice,
         label_notifica=label_notifica,
         method_notifica=method_notifica,
-        repertorio=repertorio
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
     )
 
 
@@ -646,6 +595,7 @@ def recupera_numero_protocollo(
     assert getattr(wsclient, 'numero', None)
     return wsclient.numero
 
+
 def recupera_documenti(
         credential_ws_protocollo=None,
         obj_to_credential=None,
@@ -681,12 +631,12 @@ def recupera_documenti(
     )
     wsclient.load_document(nrecord=nrecord)
     assert getattr(wsclient, 'document', None)
-    files={}
+    files = {}
     for a in attachments:
-        c_file=wsclient.get_attachment(a)
+        c_file = wsclient.get_attachment(a)
         if c_file is None:
             logger.error(f"Cannot get file {a} from Titulus!")
-        files[a]=c_file
+        files[a] = c_file
     return files
 
 

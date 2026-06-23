@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Segnatura>
+    <Intestazione>
+        <Identificatore>
+            <CodiceAmministrazione>UCALPRG</CodiceAmministrazione>
+            <CodiceAOO>AOO_UNICAL</CodiceAOO>
+            <CodiceRegistro>PROT</CodiceRegistro>
+            <NumeroRegistrazione>0001234</NumeroRegistrazione>
+            <DataRegistrazione>2026-06-23</DataRegistrazione>
+        </Identificatore>
+        <Origine>
+            <Mittente>
+                <Amministrazione>
+                    <Denominazione>Università della Calabria</Denominazione>
+                    <IndirizzoTelematico tipo="smtp">protocollo@pec.unical.it</IndirizzoTelematico>
+                </Amministrazione>
+            </Mittente>
+        </Origine>
+        <Destinazione>
+            <Destinatario>
+                <Amministrazione>
+                    <Denominazione>Ministero dell'Università e della Ricerca</Denominazione>
+                    <IndirizzoTelematico tipo="smtp">mur@pec.it</IndirizzoTelematico>
+                </Amministrazione>
+            </Destinatario>
+        </Destinazione>
+        <Oggetto>Trasmissione documentazione tecnica progetto di ricerca</Oggetto>
+    </Intestazione>
+    <Descrizione>
+        <Documento id="doc_principale" nome="documento_principale.pdf">
+            <TitoloDocumento>Istanza di partecipazione</TitoloDocumento>
+        </Documento>
+        <Allegati>
+            <Documento id="allegato_1" nome="scheda_tecnica.xml">
+                <TitoloDocumento>Scheda Dati Tecnici</TitoloDocumento>
+            </Documento>
+        </Allegati>
+    </Descrizione>
+</Segnatura>
