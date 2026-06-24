@@ -57,7 +57,7 @@ def get_protocol_dict(**kwargs):
         'send_email': kwargs.get('send_email'),
 
         # --- Riferimento esterno (Refattorizzato, neutrale rispetto al verso) ---
-        'nome_rif_esterno': f'{kwargs.get("nome_rif_esterno", "")} {kwargs.get("cognome_rif_esterno", "")}'.strip(),
+        'nome_rif_esterno': f'{kwargs.get("nome_rif_esterno") or ""} {kwargs.get("cognome_rif_esterno") or ""}'.strip(),
         'codice_fiscale_rif_esterno': kwargs.get('cod_fis_rif_esterno'),
         'cod_nome_rif_esterno': kwargs.get('cod_fis_rif_esterno'),
         'email_rif_esterno': kwargs.get('email_rif_esterno'),

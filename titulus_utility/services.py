@@ -238,20 +238,19 @@ def _esegui_flusso_protocollo(
 
     # Esecuzione dell'azione specifica (Protocollo o attivazione dell'Iter)
     logger.debug(f"Chiamata a wsclient per azione: {azione}")
+    principal_file_result={}
     if azione == 'protocolla':
         wsclient.protocolla(test=test)
         assert getattr(wsclient, 'numero', None)
-        result_key = "numero"
-        result_val = wsclient.numero
-        logger.info(f"Azione completata. Protocollato: {result_val}")
+        principal_file_result["numero"]=wsclient.numero
+        principal_file_result["nrecord"]=wsclient.nrecord
+
+        logger.info(f"Azione completata. Protocollato: {wsclient.numero}")
     elif azione == 'attiva_iter':
         wsclient.salva_bozza_e_attiva_iter(test=test)
         assert getattr(wsclient, 'nrecord', None)
-        result_key = "nrecord"
-        result_val = wsclient.nrecord
-        logger.info(f"Azione completata. Iter attivato su nrecord: {result_val}")
-
-    principal_file_result = {result_key: result_val}
+        principal_file_result["nrecord"] = wsclient.nrecord
+        logger.info(f"Azione completata. Iter attivato su nrecord: { wsclient.nrecord}")
 
     # Fascicolazione separata
     if titulus_settings.FASCICOLAZIONE_SEPARATA and prot_fascicolo_num:
