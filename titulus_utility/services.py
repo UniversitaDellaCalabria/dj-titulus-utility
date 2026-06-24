@@ -324,10 +324,10 @@ def protocolla_arrivo(
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and valid_fascicolazione
 
     rif_esterno_data = {
-        'nome_rif_esterno': user.first_name,
-        'cognome_rif_esterno': user.last_name,
-        'cod_fis_rif_esterno': user.taxpayer_id,
-        'email_rif_esterno': user.email,
+        'nome_rif_esterno': getattr(user, 'first_name', ''),
+        'cognome_rif_esterno': getattr(user, 'last_name', ''),
+        'cod_fis_rif_esterno': getattr(user, 'taxpayer_id', ''),
+        'email_rif_esterno': getattr(user, 'email', ''),
     }
 
     return _esegui_flusso_protocollo(
@@ -390,10 +390,10 @@ def avvia_iter_arrivo(
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
 
     rif_esterno_data = {
-        'nome_rif_esterno': user.first_name,
-        'cognome_rif_esterno': user.last_name,
-        'cod_fis_rif_esterno': user.taxpayer_id,
-        'email_rif_esterno': user.email,
+        'nome_rif_esterno': getattr(user, 'first_name', ''),
+        'cognome_rif_esterno': getattr(user, 'last_name', ''),
+        'cod_fis_rif_esterno': getattr(user, 'taxpayer_id', ''),
+        'email_rif_esterno': getattr(user, 'email', ''),
     }
 
     return _esegui_flusso_protocollo(
