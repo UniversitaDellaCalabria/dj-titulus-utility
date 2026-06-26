@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from pathlib import Path
 
 from django.conf import settings
@@ -431,3 +432,39 @@ DEFAULT_UO_DICT = (
 UO_DICT = getattr(settings, 'TITULUS_UO_DICT', DEFAULT_UO_DICT)
 
 
+class TitulusIdType(str, Enum):
+    """Mappatura dei percorsi XPath per gli ID univoci dei documenti Titulus."""
+
+    # ID di sistema (sempre presenti)
+    PHYSDOC = "/doc/@physdoc"
+    NRECORD = "/doc/@nrecord"
+
+    # ID condizionali
+    NUM_PROT = "/doc/@num_prot"  # Solo per documenti protocollati
+    NUM_REPERTORIO = "/doc/repertorio/@numero"  # Solo per repertori
+
+class TitulusDocNodeAttribs(str, Enum):
+    """Mappatura degli attributi del nodo <doc> di Titulus."""
+
+    # --- Identificativi ---
+    ID = "_id"
+    NRECORD = "nrecord"
+    PHYSDOC = "physdoc"
+    NUM_PROT = "num_prot"
+
+    # --- Date e Classificazione ---
+    ANNO = "anno"
+    DATA_PROT = "data_prot"
+    COD_AMM_AOO = "cod_amm_aoo"
+    TIPO = "tipo"
+    SCARTO = "scarto"
+
+    # --- Stato del documento ---
+    ANNULLATO = "annullato"
+    BOZZA = "bozza"
+
+    # --- Metadati di Sistema / Tecnici ---
+    CHECKSUM = "checksum"
+    CHECKSUM_VER = "checksum_ver"
+    IU_NAME = "iu_name"
+    SCHEMA_VERSION = "schema_version"

@@ -1,7 +1,6 @@
 import base64
 import logging
 import mimetypes
-import os
 import xml.etree.ElementTree as ET
 from email.message import EmailMessage
 from io import BytesIO
@@ -13,11 +12,10 @@ from zeep import Client, Settings, xsd
 from zeep.transports import Transport
 
 from titulus_utility import conf as titulus_settings
+from titulus_utility.conf import TitulusIdType, TitulusDocNodeAttribs
 from titulus_utility.titulus_ws.attachment_bean_utility import SOAPPayloadMixin
 
 logger = logging.getLogger(__name__)
-
-
 
 
 class WSTitulusConnector(object):
@@ -63,13 +61,14 @@ class WSTitulusConnector(object):
         if not self.is_connected():
             self.connect()
 
+
 class WSTitulusMessageBroker(WSTitulusConnector, SOAPPayloadMixin):
     """
     Gestisce le operazioni di messaggistica e notifica di secondo livello
     sul Web Service SOAP di Titulus (es. registrazione ricevute PECh/Flussi).
     """
 
-    def __init__(self, wsdl_url, username, password,email_subject=None, email_from=None, email_to=None):
+    def __init__(self, wsdl_url, username, password, email_subject=None, email_from=None, email_to=None):
         """
         Inizializza il broker di messaggistica Titulus.
         """
@@ -205,7 +204,8 @@ class WSTitulusMessageBroker(WSTitulusConnector, SOAPPayloadMixin):
             )
 
             if receive_msg_response:
-                xml_string = receive_msg_response if isinstance(receive_msg_response, str) else receive_msg_response._value_1
+                xml_string = receive_msg_response if isinstance(receive_msg_response,
+                                                                str) else receive_msg_response._value_1
                 logger.info(f"[{nrecord}] Notifica registrata con successo su Titulus.")
                 logger.debug(f"[{nrecord}] Risposta raw da receiveMsgForDocument:\n{xml_string}")
                 return True
@@ -217,7 +217,8 @@ class WSTitulusMessageBroker(WSTitulusConnector, SOAPPayloadMixin):
             logger.exception(f"[{nrecord}] Errore fatale durante l'esecuzione di receiveMsgForDocument: {e}")
             raise
 
-class WSTitulusFileClient(WSTitulusConnector,SOAPPayloadMixin):
+
+class WSTitulusFileClient(WSTitulusConnector, SOAPPayloadMixin):
     def __init__(self,
                  wsdl_url,
                  username,
@@ -253,7 +254,8 @@ class WSTitulusFileClient(WSTitulusConnector,SOAPPayloadMixin):
 
         # Ora verifichiamo che self.document non sia None
         if self.document is None:
-            raise Exception(f"Impossibile scaricare l'allegato richiesto, documento non caricato in memoria, chiamare load_document prima")
+            raise Exception(
+                f"Impossibile scaricare l'allegato richiesto, documento non caricato in memoria, chiamare load_document prima")
 
         logger.info(f"[{self.nrecord}] Richiesta allegato: {filename}")
 
@@ -306,7 +308,8 @@ class WSTitulusFileClient(WSTitulusConnector,SOAPPayloadMixin):
                     file_content = attachment_bean.content._value_1
 
                 except AttributeError:
-                    logger.warning(f"[{self.nrecord}] Struttura AttachmentBean inattesa. Tento il recupero dal dizionario o XML grezzo.")
+                    logger.warning(
+                        f"[{self.nrecord}] Struttura AttachmentBean inattesa. Tento il recupero dal dizionario o XML grezzo.")
 
                     if isinstance(attachment_bean, dict) and 'content' in attachment_bean:
                         file_content = attachment_bean['content']
@@ -334,7 +337,8 @@ class WSTitulusFileClient(WSTitulusConnector,SOAPPayloadMixin):
                     return file_content
 
                 else:
-                    raise Exception(f"[{self.nrecord}] Tipo di dato non previsto per il contenuto del file: {type(file_content)}")
+                    raise Exception(
+                        f"[{self.nrecord}] Tipo di dato non previsto per il contenuto del file: {type(file_content)}")
 
         except Exception as e:
             logger.exception(f"[{self.nrecord}] Errore fatale durante get_attachment: {e}")
@@ -383,12 +387,12 @@ class WSTitulusQueryClient(WSTitulusConnector):
                 if doc_node is not None:
                     attribs = doc_node.attrib
 
-                    if 'num_prot' in attribs:
-                        self.numero = attribs['num_prot']
+                    if TitulusDocNodeAttribs.NUM_PROT in attribs:
+                        self.numero = attribs[TitulusDocNodeAttribs.NUM_PROT]
                         logger.info(f"[{nrecord}] Record recuperato. Assegnato Num Prot: {self.numero}")
 
-                    if 'nrecord' in attribs:
-                        self.nrecord = attribs['nrecord']
+                    if TitulusDocNodeAttribs.NRECORD in attribs:
+                        self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD]
                         logger.info(f"[{nrecord}] Record recuperato. Assegnato Nrecord: {self.nrecord}")
                 else:
                     logger.error(f"[{nrecord}] Attenzione: Nodo <doc> non trovato nella risposta XML!")
@@ -407,8 +411,43 @@ class WSTitulusQueryClient(WSTitulusConnector):
                                    orderby=xsd.SkipValue,
                                    params=xsd.SkipValue)
 
+    def get_document_infos(self, id_type, value, required_infos):
+        """
+        Cerca un documento e ne estrae un set specifico di attributi XML.
 
-class WSTitulusClient(WSTitulusQueryClient,SOAPPayloadMixin):
+        Utilizza `cercaDocumento` per trovare il documento e parsa il nodo `<doc>`
+        restituendo solo gli attributi richiesti. Include una validazione del tipo
+        di identificatore passato.
+
+        Args:
+            id_type (TitulusIdType): Il tipo di identificatore usato per la ricerca.
+            value (str): Il valore dell'identificatore da cercare.
+            required_infos (list of str): Lista dei nomi degli attributi XML che si
+                                          desidera estrarre dal nodo <doc>.
+
+        Returns:
+            dict: Un dizionario contenente le chiavi presenti in `required_infos`
+                  che sono state trovate negli attributi del nodo XML, con i
+                  rispettivi valori.
+
+        Raises:
+            TypeError: Se `id_type` non è un'istanza dell'enum `TitulusIdType`.
+        """
+        if not isinstance(id_type, TitulusIdType):
+            raise TypeError(f"id_type deve essere di tipo TitulusIdType, ricevuto {type(id_type).__name__}")
+        document_infos = self.cercaDocumento(id_type.value, value)
+        root = ET.fromstring(document_infos._value_1)
+        to_return = {}
+        doc_node = root.find('.//doc')
+        if doc_node is not None:
+            attribs = doc_node.attrib
+            for required_info in required_infos:
+                if required_info in attribs:
+                    to_return[required_info] = attribs[required_info]
+        return to_return
+
+
+class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
     """
     Client per la logica di business del Web Service Titulus.
 
@@ -455,8 +494,8 @@ class WSTitulusClient(WSTitulusQueryClient,SOAPPayloadMixin):
             self.anno = None
 
         # Gestione nrecord da kwargs
-        if kwargs.get('nrecord'):
-            self.nrecord = kwargs.get('nrecord')
+        if kwargs.get(TitulusDocNodeAttribs.NRECORD):
+            self.nrecord = kwargs.get(TitulusDocNodeAttribs.NRECORD)
 
         # attachments
         self.allegati = []
@@ -510,12 +549,12 @@ class WSTitulusClient(WSTitulusQueryClient,SOAPPayloadMixin):
                 root = ET.fromstring(saveDocumentResponse._value_1)
                 attribs = root[1][0].attrib
 
-                if 'num_prot' in attribs:
-                    self.numero = attribs['num_prot']
+                if TitulusDocNodeAttribs.NUM_PROT in attribs:
+                    self.numero = attribs[TitulusDocNodeAttribs.NUM_PROT]
                     logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.numero}")
 
-                if 'nrecord' in attribs:
-                    self.nrecord = attribs['nrecord']
+                if TitulusDocNodeAttribs.NRECORD in attribs:
+                    self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD]
                     logger.info(f"Salvataggio completato. Assegnato Nrecord: {self.nrecord}")
 
                 return True
@@ -565,7 +604,8 @@ class WSTitulusClient(WSTitulusQueryClient,SOAPPayloadMixin):
         self.assure_connection()
 
         if self.rpa_code:
-            logger.debug(f"Impostazione impersonificazione WSUser: {self.rpa_username}, usando la sua matricola {self.rpa_code}")
+            logger.debug(
+                f"Impostazione impersonificazione WSUser: {self.rpa_username}, usando la sua matricola {self.rpa_code}")
             self.service.setWSUser(
                 user=self.rpa_code,
                 pnumber=self.rpa_code

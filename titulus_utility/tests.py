@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 from titulus_utility import services
 from titulus_utility import conf as titulus_settings
+from titulus_utility.conf import TitulusIdType
 from titulus_utility.models import Repertorio
 from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusConnector
 
@@ -321,14 +322,14 @@ class TitulusIntegrationTests(TestCase):
     def test_09_recupera_numero_protocollo(self):
         risultato = services.recupera_numero_protocollo(
             credential_ws_protocollo=self.mock_cred,
-            nrecord="000063688-UCALPRG-d37b386c-c10a-4ba3-8e27-e7020d995b47",
+            nrecord="000063688-EXAMPLE-d37b386c-c10a-4ba3-8e27-e7020d995b47",
             test=True,
         )
         self.assertIsNotNone(risultato)
 
     def test_10_get_attachments(self):
         risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,
-                                                nrecord="000063964-UCALPRG-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",
+                                                nrecord="000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",
                                                 attachments=["MSTLNE94M46C710M.pdf"], test=True)
         self.assertIsNotNone(risultato)
         print(risultato)
@@ -758,3 +759,49 @@ class TitulusIntegrationTests(TestCase):
             # Verifichiamo che Titulus abbia accettato questo specifico formato senza corrompersi
             self.assertIn("numero", risultato, f"Protocollazione fallita per il file: {filename}")
             self.assertIsNotNone(risultato["numero"], f"Numero di protocollo nullo per il file: {filename}")
+
+    # ==========================================
+    # CASI RECUPERO INFORMAZIONI MASSIVO
+    # ==========================================
+
+    def test_20_recupera_nrecord_da_num_prot(self):
+        """
+        Testa il recupero massivo dell'nrecord per due documenti distinti,
+        utilizzando il loro numero di protocollo (num_prot) come chiave di ricerca.
+        Stampa a terminale il dizionario risultante.
+        """
+        # Se li hai definiti in altri file, assicurati di averli importati in cima!
+        # Esempio: from mio_modulo.enums import TitulusIdType, TitulusDocNodeAttribs
+
+        # 1. Definiamo i due numeri di protocollo di test
+        # (Uso quelli presenti nel tuo XML precedente come esempio)
+        protocolli_da_cercare = [
+            "2026-EXAMPLE-0000545",
+            "2026-EXAMPLE-0000320"
+        ]
+
+        # 2. Definiamo le informazioni che vogliamo farci restituire (in questo caso 'nrecord')
+        info_richieste = ["nrecord"]
+
+        # 3. Invochiamo il wrapper che abbiamo creato
+        risultati = services.recupera_info_documenti(
+            id_type=TitulusIdType.NUM_PROT,  # Assicurati di usare l'Enum corretto
+            ids=protocolli_da_cercare,
+            required_infos=info_richieste,
+            credential_ws_protocollo=self.mock_cred,
+            test=True
+        )
+
+        # 4. Verifica di base per il test
+        self.assertIsNotNone(risultati, "Il wrapper ha restituito None invece di un dizionario.")
+        self.assertTrue(len(risultati) > 0, "Il dizionario dei risultati è vuoto.")
+
+        # 5. Stampa a video dei risultati estratti (come da te richiesto)
+        print("\n" + "=" * 50)
+        print("RISULTATI RICERCA NRECORD DA NUM_PROT")
+        print("=" * 50)
+        for doc_id, infos in risultati.items():
+            nrecord_trovato = infos.get("nrecord", "NON TROVATO")
+            print(f"Num. Protocollo cercato: {doc_id}")
+            print(f"Nrecord estratto:        {nrecord_trovato}")
+            print("-" * 50)

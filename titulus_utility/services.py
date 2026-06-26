@@ -238,19 +238,19 @@ def _esegui_flusso_protocollo(
 
     # Esecuzione dell'azione specifica (Protocollo o attivazione dell'Iter)
     logger.debug(f"Chiamata a wsclient per azione: {azione}")
-    principal_file_result={}
+    principal_file_result = {}
     if azione == 'protocolla':
         wsclient.protocolla(test=test)
         assert getattr(wsclient, 'numero', None)
-        principal_file_result["numero"]=wsclient.numero
-        principal_file_result["nrecord"]=wsclient.nrecord
+        principal_file_result["numero"] = wsclient.numero
+        principal_file_result["nrecord"] = wsclient.nrecord
 
         logger.info(f"Azione completata. Protocollato: {wsclient.numero}")
     elif azione == 'attiva_iter':
         wsclient.salva_bozza_e_attiva_iter(test=test)
         assert getattr(wsclient, 'nrecord', None)
         principal_file_result["nrecord"] = wsclient.nrecord
-        logger.info(f"Azione completata. Iter attivato su nrecord: { wsclient.nrecord}")
+        logger.info(f"Azione completata. Iter attivato su nrecord: {wsclient.nrecord}")
 
     # Fascicolazione separata
     if titulus_settings.FASCICOLAZIONE_SEPARATA and prot_fascicolo_num:
@@ -287,6 +287,8 @@ def _esegui_flusso_protocollo(
         logger.info(msg)
 
     return principal_file_result
+
+
 # ==============================================================================================
 # WRAPPERS PUBBLICI (Semplificati e Rinominati)
 # ==============================================================================================
@@ -867,3 +869,72 @@ def registra_ricevuta_eml_documento(
     if success:
         logger.info(f"[{nrecord}] Flusso di registrazione ricevuta EML completato con successo.")
     return success
+
+
+def recupera_info_documenti(
+        id_type,
+        ids,
+        required_infos,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        test=False,
+):
+    """
+    Wrapper per il recupero massivo di attributi XML da una lista di documenti Titulus.
+
+    Restituisce un dizionario dove la chiave è l'ID del documento e il valore è un
+    dizionario con le info richieste trovate (es. {'65490': {'num_prot': '2026-...', 'anno': '2026'}}).
+    """
+    logger.debug("Wrapper recupera_info_documenti invocato.")
+
+    # Recupero credenziali se non passate esplicitamente
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+
+    # La configurazione è valida se abbiamo le credenziali e almeno un ID da cercare
+    valid_conf = credential_ws_protocollo and ids
+
+    logger.info(f"Avvio recupero info per {len(ids)} documenti (Tipo ID: {id_type.name})")
+
+    # Configurazione URL e Credenziali
+    if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Missing XML configuration, or empty ids list for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    # Inizializzazione del Client
+    wsclient = WSTitulusQueryClient(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+    )
+
+    # Esecuzione del recupero dati massivo
+    risultati = {}
+
+    for doc_id in ids:
+        logger.debug(f"Recupero info per documento: [{id_type.value} = {doc_id}]")
+        try:
+            doc_info = wsclient.get_document_infos(
+                id_type=id_type,
+                value=doc_id,
+                required_infos=required_infos
+            )
+            risultati[doc_id] = doc_info
+
+        except Exception as e:
+            # In caso di errore su un singolo ID, logghiamo l'errore ma continuiamo il ciclo
+            logger.error(f"Errore durante il recupero del documento {doc_id}: {e}")
+            risultati[doc_id] = {"error": str(e)}
+
+    return risultati
