@@ -10,6 +10,7 @@ from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQuer
     WSTitulusMessageBroker
 from titulus_utility.titulus_ws.utils import get_protocol_dict, normalize_attachment
 from . import conf as titulus_settings
+from .conf import TitulusDocNodeAttribs
 from .models import CredentialWSProtocollo, ConfigurationWSProtocollo
 
 logger = logging.getLogger(__name__)
@@ -146,9 +147,9 @@ def _esegui_flusso_protocollo(
         autore=titulus_settings.TITULUS_AUTORE,
         aoo=prot_aoo,
         agd=prot_agd,
-        destinatario=prot_uo_rpa,
-        destinatario_username=prot_uo_rpa_username,
-        destinatario_code=prot_uo_rpa_matricola,
+        rif_interno=prot_uo_rpa,
+        rif_interno_username=prot_uo_rpa_username,
+        rif_interno_code=prot_uo_rpa_matricola,
         send_email=prot_send_email,
         uo_nome=uo_nome,
         uo=prot_uo,
@@ -241,22 +242,22 @@ def _esegui_flusso_protocollo(
     principal_file_result = {}
     if azione == 'protocolla':
         wsclient.protocolla(test=test)
-        assert getattr(wsclient, 'numero', None)
-        principal_file_result["numero"] = wsclient.numero
-        principal_file_result["nrecord"] = wsclient.nrecord
+        assert getattr(wsclient, TitulusDocNodeAttribs.NUM_PROT.value, None)
+        principal_file_result[TitulusDocNodeAttribs.NUM_PROT.value] = wsclient.num_prot
+        principal_file_result[TitulusDocNodeAttribs.NRECORD.value] = wsclient.nrecord
 
-        logger.info(f"Azione completata. Protocollato: {wsclient.numero}")
+        logger.info(f"Azione completata. Protocollato: {wsclient.num_prot}")
     elif azione == 'attiva_iter':
         wsclient.salva_bozza_e_attiva_iter(test=test)
-        assert getattr(wsclient, 'nrecord', None)
-        principal_file_result["nrecord"] = wsclient.nrecord
+        assert getattr(wsclient, TitulusDocNodeAttribs.NRECORD.value, None)
+        principal_file_result[TitulusDocNodeAttribs.NRECORD.value] = wsclient.nrecord
         logger.info(f"Azione completata. Iter attivato su nrecord: {wsclient.nrecord}")
 
     # Fascicolazione separata
     if titulus_settings.FASCICOLAZIONE_SEPARATA and prot_fascicolo_num:
         logger.info("Fascicolazione separata attiva. Avvio processo.")
-        doc_num_prot = getattr(wsclient, 'numero', '')
-        doc_nrecord = getattr(wsclient, 'nrecord', '')
+        doc_num_prot = getattr(wsclient, TitulusDocNodeAttribs.NUM_PROT.value, '')
+        doc_nrecord = getattr(wsclient, TitulusDocNodeAttribs.NRECORD.value, '')
 
         try:
             with open(titulus_settings.FASCICOLO_PATH, "r", encoding=titulus_settings.PROT_DOC_ENCODING) as file:
@@ -444,7 +445,7 @@ def protocolla_partenza(
 ):
     """
     Protocolla un documento in "partenza". Riceve direttamente i dati anagrafici
-    del destinatario nei kwargs.
+    del rif_interno nei kwargs.
     """
     logger.debug("Wrapper protocolla_partenza invocato.")
 
@@ -593,8 +594,8 @@ def recupera_numero_protocollo(
         password=prot_passw,
     )
     wsclient.get_record_infos(nrecord=nrecord)
-    assert getattr(wsclient, 'numero', None)
-    return wsclient.numero
+    assert getattr(wsclient, TitulusDocNodeAttribs.NUM_PROT.value, None)
+    return wsclient.num_prot
 
 
 def recupera_documenti(

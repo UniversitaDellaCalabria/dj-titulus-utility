@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 from titulus_utility import services
 from titulus_utility import conf as titulus_settings
-from titulus_utility.conf import TitulusIdType
+from titulus_utility.conf import TitulusIdType, TitulusDocNodeAttribs
 from titulus_utility.models import Repertorio
 from titulus_utility.titulus_ws.protocollo import WSTitulusClient, WSTitulusQueryClient, WSTitulusConnector
 
@@ -72,10 +72,10 @@ class TitulusIntegrationTests(TestCase):
             principal_file_name=self.test_file_name,
             principal_file=self.test_file_content,
             test=True,
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
-        self.assertIn("numero", risultato)
-        self.assertIsNotNone(risultato["numero"])
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
     def test_02_arrivo_protocollo_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -91,10 +91,10 @@ class TitulusIntegrationTests(TestCase):
             attachments=attachments,
             attachments_folder=self.attachment_folder,
             test=True,
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
-        self.assertIn("numero", risultato)
-        self.assertIsNotNone(risultato["numero"])
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
     def test_02_b_arrivo_protocollo_con_zip_principale(self):
         """
@@ -126,11 +126,11 @@ class TitulusIntegrationTests(TestCase):
             attachments_folder=self.attachment_folder,
             test=True,
             # Manteniamo il tuo parametro del flusso d'esempio
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
 
-        self.assertIn("numero", risultato)
-        self.assertIsNotNone(risultato["numero"])
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
     # ==========================================
     # CASI PARTENZA - PROTOCOLLO DIRETTO
@@ -145,8 +145,8 @@ class TitulusIntegrationTests(TestCase):
             principal_file=self.test_file_content,
             test=True,
         )
-        self.assertIn("numero", risultato)
-        self.assertIsNotNone(risultato["numero"])
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
     def test_04_partenza_protocollo_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -161,8 +161,8 @@ class TitulusIntegrationTests(TestCase):
             attachments_folder=self.attachment_folder,
             test=True,
         )
-        self.assertIn("numero", risultato)
-        self.assertIsNotNone(risultato["numero"])
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
     # ==========================================
     # CASI ARRIVO - BOZZA E ITER
@@ -180,8 +180,8 @@ class TitulusIntegrationTests(TestCase):
             test=True
         )
         # Nelle bozze ci aspettiamo l'nrecord, non il numero di protocollo
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_05_arrivo_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_arrivo(
@@ -196,8 +196,8 @@ class TitulusIntegrationTests(TestCase):
             invia_notifica=True
         )
         # Nelle bozze ci aspettiamo l'nrecord, non il numero di protocollo
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_06_arrivo_bozza_iter_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -214,8 +214,8 @@ class TitulusIntegrationTests(TestCase):
             attachments_folder=self.attachment_folder,
             test=True
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_06_arrivo_bozza_iter_con_allegati_notifica(self):
         attachments = self._get_test_attachments()
@@ -233,8 +233,8 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=True
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     # ==========================================
     # CASI PARTENZA - BOZZA E ITER
@@ -251,8 +251,8 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=False,
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_07_1_partenza_bozza_iter_senza_allegati(self):
         risultato = services.avvia_iter_partenza(
@@ -266,8 +266,8 @@ class TitulusIntegrationTests(TestCase):
             invia_notifica=False,
             repertorio=self.test_repertorio,
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_07_partenza_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_partenza(
@@ -280,8 +280,8 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=True,
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_08_partenza_bozza_iter_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -298,8 +298,8 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=False,
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_08_partenza_bozza_iter_con_allegati_notifica(self):
         attachments = self._get_test_attachments()
@@ -316,20 +316,20 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=True,
         )
-        self.assertIn("nrecord", risultato)
-        self.assertIsNotNone(risultato["nrecord"])
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
     def test_09_recupera_numero_protocollo(self):
         risultato = services.recupera_numero_protocollo(
             credential_ws_protocollo=self.mock_cred,
-            nrecord="000063688-EXAMPLE-d37b386c-c10a-4ba3-8e27-e7020d995b47",
+            nrecord="000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba",
             test=True,
         )
         self.assertIsNotNone(risultato)
 
     def test_10_get_attachments(self):
         risultato = services.recupera_documenti(credential_ws_protocollo=self.mock_cred,
-                                                nrecord="000063964-EXAMPLE-d70b4a6e-694b-4cb2-b4d5-8c69b2f746b4",
+                                                nrecord="000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba",
                                                 attachments=["MSTLNE94M46C710M.pdf"], test=True)
         self.assertIsNotNone(risultato)
         print(risultato)
@@ -344,7 +344,7 @@ class TitulusIntegrationTests(TestCase):
         Verifica il funzionamento end-to-end del modulo WSTitulusMessageBroker.
         """
         # Utilizziamo lo stesso nrecord di test valido e già presente nell'ambiente CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
         # Generiamo al volo un XML di ricevuta simulato in byte
         dummy_receipt_content = b"<notifica><stato>CONSEGNATO</stato><operazione>TEST-INTEGRAZIONE</operazione></notifica>"
@@ -371,7 +371,7 @@ class TitulusIntegrationTests(TestCase):
         Verifica che il MessageBroker carichi e associ correttamente il documento.
         """
         # Utilizziamo l'nrecord di test valido sul server CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
 
         # Generiamo una struttura minima ma binariamente valida di un file PDF
@@ -409,7 +409,7 @@ class TitulusIntegrationTests(TestCase):
         e il suo corretto caricamento e associazione su un documento Titulus esistente.
         """
         # Utilizziamo lo stesso nrecord di test valido sul server sandbox CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
 
 
@@ -457,7 +457,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
         # Costruiamo il percorso assoluto in modo sicuro.
         # Se 'media' si trova nella radice del tuo progetto Django:
@@ -516,7 +516,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
         # Costruzione del percorso sicuro verso il file ZIP su disco
         file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
@@ -556,7 +556,7 @@ class TitulusIntegrationTests(TestCase):
         from django.conf import settings
 
         # Utilizziamo lo stesso nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
         # Costruzione del percorso sicuro verso il file ZIP su disco
         file_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
@@ -611,7 +611,7 @@ class TitulusIntegrationTests(TestCase):
         from email.message import EmailMessage
 
         # Utilizziamo l'nrecord valido dell'ambiente sandbox CINECA
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
         # 1. Costruiamo l'email INTERNA (l'allegato .eml) con il proprio testo indipendente
         inner_msg = EmailMessage()
@@ -658,7 +658,7 @@ class TitulusIntegrationTests(TestCase):
         """
         from email.message import EmailMessage
 
-        test_nrecord = "000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+        test_nrecord = "000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
 
 
         # --- LIVELLO 2: L'email più profonda (Interna) ---
@@ -753,12 +753,12 @@ class TitulusIntegrationTests(TestCase):
                 principal_file_name=filename,
                 principal_file=file_content,
                 test=True,
-                linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+                linked_nrecord="000065035-UCALPRG-e720f824-8881-4403-9257-f8ed8d8af7ba"
             )
 
             # Verifichiamo che Titulus abbia accettato questo specifico formato senza corrompersi
-            self.assertIn("numero", risultato, f"Protocollazione fallita per il file: {filename}")
-            self.assertIsNotNone(risultato["numero"], f"Numero di protocollo nullo per il file: {filename}")
+            self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato, f"Protocollazione fallita per il file: {filename}")
+            self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value], f"Numero di protocollo nullo per il file: {filename}")
 
     # ==========================================
     # CASI RECUPERO INFORMAZIONI MASSIVO
@@ -776,12 +776,12 @@ class TitulusIntegrationTests(TestCase):
         # 1. Definiamo i due numeri di protocollo di test
         # (Uso quelli presenti nel tuo XML precedente come esempio)
         protocolli_da_cercare = [
-            "2026-EXAMPLE-0000545",
-            "2026-EXAMPLE-0000320"
+            "2026-UNICALPRG-0000545",
+            "2026-UNICALPRG-0000320"
         ]
 
-        # 2. Definiamo le informazioni che vogliamo farci restituire (in questo caso 'nrecord')
-        info_richieste = ["nrecord"]
+        # 2. Definiamo le informazioni che vogliamo farci restituire (in questo caso TitulusDocNodeAttribs.NRECORD)
+        info_richieste = [TitulusDocNodeAttribs.NRECORD.value]
 
         # 3. Invochiamo il wrapper che abbiamo creato
         risultati = services.recupera_info_documenti(
@@ -801,7 +801,7 @@ class TitulusIntegrationTests(TestCase):
         print("RISULTATI RICERCA NRECORD DA NUM_PROT")
         print("=" * 50)
         for doc_id, infos in risultati.items():
-            nrecord_trovato = infos.get("nrecord", "NON TROVATO")
+            nrecord_trovato = infos.get(TitulusDocNodeAttribs.NRECORD.value, "NON TROVATO")
             print(f"Num. Protocollo cercato: {doc_id}")
             print(f"Nrecord estratto:        {nrecord_trovato}")
             print("-" * 50)

@@ -1,5 +1,6 @@
 import logging
 import os
+import zipfile
 from io import BytesIO
 from reportlab.pdfgen import canvas
 
@@ -15,7 +16,7 @@ def get_protocol_dict(**kwargs):
         dizionario formattato esattamente per il rendering del template `document.jinja2.xml`.
 
         Args:
-            **kwargs: Variabili di contesto (tipo, oggetto, aoo, destinatario, rif_esterno, ecc.).
+            **kwargs: Variabili di contesto (tipo, oggetto, aoo, rif_interno, rif_esterno, ecc.).
 
         Returns:
             dict: Dizionario normalizzato pronto per essere passato a `Protocollo()`.
@@ -46,9 +47,9 @@ def get_protocol_dict(**kwargs):
         'voce_indice': kwargs.get('voce_indice'),
 
         # --- Riferimento interno ---
-        'nome_persona_rif_interno': kwargs.get('destinatario'),
-        'destinatario_username': kwargs.get('destinatario_username'),
-        'destinatario_code': kwargs.get('destinatario_code'),
+        'nome_persona_rif_interno': kwargs.get('rif_interno'),
+        'rif_interno_username': kwargs.get('rif_interno_username'),
+        'rif_interno_code': kwargs.get('rif_interno_code'),
         'nome_uff_rif_interno': kwargs.get('uo_nome'),
         'cod_uff_rif_interno': kwargs.get('uo'),
         'cod_persona': kwargs.get('cod_persona'),

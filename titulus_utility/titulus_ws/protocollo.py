@@ -358,7 +358,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
         super().__init__(wsdl_url=wsdl_url, username=username, password=password)
 
         # Inizializziamo questi attributi poiché get_record_infos va a popolarli
-        self.numero = None
+        self.num_prot = None
         self.nrecord = None
 
     def get_record_infos(self, nrecord):
@@ -369,7 +369,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
             nrecord (string): l'identificativo del record registrato in titulus
 
         Returns:
-            bool: True se la chiamata va a buon fine, assegnando a `self.numero` o `self.nrecord` la risposta.
+            bool: True se la chiamata va a buon fine, assegnando a `self.num_prot` o `self.nrecord` la risposta.
         """
         logger.info(f"Richiesta info per il record {nrecord}")
         self.assure_connection()
@@ -387,12 +387,12 @@ class WSTitulusQueryClient(WSTitulusConnector):
                 if doc_node is not None:
                     attribs = doc_node.attrib
 
-                    if TitulusDocNodeAttribs.NUM_PROT in attribs:
-                        self.numero = attribs[TitulusDocNodeAttribs.NUM_PROT]
-                        logger.info(f"[{nrecord}] Record recuperato. Assegnato Num Prot: {self.numero}")
+                    if TitulusDocNodeAttribs.NUM_PROT.value in attribs:
+                        self.num_prot = attribs[TitulusDocNodeAttribs.NUM_PROT.value]
+                        logger.info(f"[{nrecord}] Record recuperato. Assegnato Num Prot: {self.num_prot}")
 
-                    if TitulusDocNodeAttribs.NRECORD in attribs:
-                        self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD]
+                    if TitulusDocNodeAttribs.NRECORD.value in attribs:
+                        self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD.value]
                         logger.info(f"[{nrecord}] Record recuperato. Assegnato Nrecord: {self.nrecord}")
                 else:
                     logger.error(f"[{nrecord}] Attenzione: Nodo <doc> non trovato nella risposta XML!")
@@ -480,22 +480,22 @@ class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
         logger.debug(f"XML Renderizzato (Doc): {self.doc}")
 
         # RPA username and code (per impersonificare RPA in fascicolazione)
-        self.rpa_username = kwargs.get('destinatario_username')
-        self.rpa_code = kwargs.get('destinatario_code', None)
+        self.rpa_username = kwargs.get('rif_interno_username')
+        self.rpa_code = kwargs.get('rif_interno_code', None)
 
         # send email
         self.send_email = kwargs.get('send_email', False)
 
         # Gestione numero/anno da kwargs (sovrascrive eventuali None del super().__init__)
         if kwargs.get('numero') and kwargs.get('anno'):
-            self.numero = kwargs.get('numero')
+            self.num_prot = kwargs.get('numero')
             self.anno = kwargs.get('anno')
         else:
             self.anno = None
 
         # Gestione nrecord da kwargs
-        if kwargs.get(TitulusDocNodeAttribs.NRECORD):
-            self.nrecord = kwargs.get(TitulusDocNodeAttribs.NRECORD)
+        if kwargs.get(TitulusDocNodeAttribs.NRECORD.value):
+            self.nrecord = kwargs.get(TitulusDocNodeAttribs.NRECORD.value)
 
         # attachments
         self.allegati = []
@@ -512,14 +512,14 @@ class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
             force (bool): Se True, forza il salvataggio ignorando eventuali controlli di presenza di un numero pregresso.
 
         Returns:
-            bool: True se la chiamata va a buon fine, assegnando a `self.numero` o `self.nrecord` la risposta.
+            bool: True se la chiamata va a buon fine, assegnando a `self.num_prot` o `self.nrecord` la risposta.
         """
         logger.info(f"Esecuzione salvataggio (bozza: {is_bozza}, force: {force})")
         self.assure_connection()
 
         if not force:
-            if not is_bozza and (self.numero or self.anno):
-                error_msg = f'Tentativo di protocollare un\'istanza con numero/anno già assegnati: {self.numero}/{self.anno}'
+            if not is_bozza and (self.num_prot or self.anno):
+                error_msg = f'Tentativo di protocollare un\'istanza con numero/anno già assegnati: {self.num_prot}/{self.anno}'
                 logger.error(error_msg)
                 raise Exception(error_msg)
             if is_bozza and self.nrecord:
@@ -549,12 +549,12 @@ class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
                 root = ET.fromstring(saveDocumentResponse._value_1)
                 attribs = root[1][0].attrib
 
-                if TitulusDocNodeAttribs.NUM_PROT in attribs:
-                    self.numero = attribs[TitulusDocNodeAttribs.NUM_PROT]
-                    logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.numero}")
+                if TitulusDocNodeAttribs.NUM_PROT.value in attribs:
+                    self.num_prot = attribs[TitulusDocNodeAttribs.NUM_PROT.value]
+                    logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.num_prot}")
 
-                if TitulusDocNodeAttribs.NRECORD in attribs:
-                    self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD]
+                if TitulusDocNodeAttribs.NRECORD.value in attribs:
+                    self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD.value]
                     logger.info(f"Salvataggio completato. Assegnato Nrecord: {self.nrecord}")
 
                 return True
