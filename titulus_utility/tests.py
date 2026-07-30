@@ -776,6 +776,7 @@ class TitulusIntegrationTests(TestCase):
         # 1. Definiamo i due numeri di protocollo di test
         # (Uso quelli presenti nel tuo XML precedente come esempio)
         protocolli_da_cercare = [
+            "2026-UCALPRG-0000686",
             "2026-UNICALPRG-0000545",
             "2026-UNICALPRG-0000320"
         ]
@@ -804,4 +805,73 @@ class TitulusIntegrationTests(TestCase):
             nrecord_trovato = infos.get(TitulusDocNodeAttribs.NRECORD.value, "NON TROVATO")
             print(f"Num. Protocollo cercato: {doc_id}")
             print(f"Nrecord estratto:        {nrecord_trovato}")
+            print("-" * 50)
+
+    def test_21_recupera_url_documento(self):
+        """
+        Testa il recupero dell'URL di accesso per un singolo documento Titulus,
+        utilizzando il suo numero di protocollo (num_prot).
+        Stampa a terminale l'URL risultante.
+        """
+        # 1. Definiamo l'ID da cercare
+        protocollo_da_cercare = "2026-UCALPRG-1000686"
+
+        # 2. Invochiamo il wrapper per il singolo documento
+        risultato_url = services.recupera_url_documento(
+            id_type=TitulusIdType.NUM_PROT,
+            doc_id=protocollo_da_cercare,
+            credential_ws_protocollo=self.mock_cred,
+            test=True
+        )
+
+        # 3. Verifica che il risultato esista e sia una stringa valida (non un dizionario di errore)
+        self.assertTrue(risultato_url, "Il servizio non ha restituito alcun URL valido.")
+        self.assertIsInstance(risultato_url, str, "Il valore restituito non è una stringa.")
+
+        # 4. Stampa a video del risultato
+        print("\n" + "=" * 50)
+        print("RISULTATO RICERCA URL SINGOLO")
+        print("=" * 50)
+        print(f"Documento: {protocollo_da_cercare}")
+        print(f"URL:       {risultato_url}")
+        print("-" * 50)
+
+    def test_22_recupera_url_documenti_massivo(self):
+        """
+        Testa il recupero massivo degli URL di accesso per una lista di documenti,
+        utilizzando il loro numero di protocollo (num_prot) come chiave.
+        Stampa a terminale il dizionario risultante.
+        """
+        # 1. Definiamo i numeri di protocollo di test
+        protocolli_da_cercare = [
+            "2026-UNICALPRG-0000686",
+            "2026-UNICALPRG-0000545",
+            "2026-UNICALPRG-0000320"
+        ]
+
+        # 2. Invochiamo il wrapper massivo che abbiamo creato
+        risultati = services.recupera_url_documenti(
+            id_type=TitulusIdType.NUM_PROT,
+            ids=protocolli_da_cercare,
+            credential_ws_protocollo=self.mock_cred,
+            test=True
+        )
+
+        # 3. Verifica di base per il test
+        self.assertIsNotNone(risultati, "Il wrapper ha restituito None invece di un dizionario.")
+        self.assertTrue(len(risultati) > 0, "Il dizionario dei risultati è vuoto.")
+
+        # 4. Stampa a video dei risultati estratti
+        print("\n" + "=" * 50)
+        print("RISULTATI RICERCA URL MASSIVA DA NUM_PROT")
+        print("=" * 50)
+        for doc_id, url_estratto in risultati.items():
+            # url_estratto potrebbe essere la stringa dell'url o un dizionario in caso di errore {"error": "..."}
+            if isinstance(url_estratto, dict):
+                valore_stampato = f"ERRORE: {url_estratto.get('error')}"
+            else:
+                valore_stampato = url_estratto if url_estratto else "NON TROVATO"
+
+            print(f"Num. Protocollo cercato: {doc_id}")
+            print(f"URL estratto:            {valore_stampato}")
             print("-" * 50)

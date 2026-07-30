@@ -402,6 +402,57 @@ class WSTitulusQueryClient(WSTitulusConnector):
             logger.exception(f"[{nrecord}] Errore fatale durante _get_record_infos: {e}")
             raise
 
+    def get_document_url(self, id_type, value):
+        """
+        Costruisce e recupera l'URL di accesso diretto a un documento in Titulus.
+
+        Il web service originale supporta esclusivamente la ricerca tramite:
+        - nrecord
+        - numero di protocollo
+        - numero di repertorio
+
+        Args:
+            id_type (TitulusIdType): Il tipo di identificatore usato (escluso PHYSDOC).
+            value (str): Il valore dell'identificativo.
+
+        Returns:
+            str: L'URL di accesso diretto al documento su Titulus.
+
+        Raises:
+            TypeError: Se `id_type` non è un'istanza dell'enum `TitulusIdType`.
+            ValueError: Se viene passato un `id_type` non supportato (es. PHYSDOC).
+            Exception: Se l'invocazione del servizio SOAP fallisce.
+        """
+        if not isinstance(id_type, TitulusIdType):
+            raise TypeError(f"id_type deve essere di tipo TitulusIdType, ricevuto {type(id_type).__name__}")
+
+        # Validazione specifica per getDocumentURL (non accetta il physdoc)
+        if id_type == TitulusIdType.PHYSDOC:
+            raise ValueError(f"getDocumentURL non accetta {id_type.name}. Usa NRECORD, NUM_PROT o NUM_REPERTORIO.")
+
+        logger.info(f"Richiesta link per il documento identificato da {id_type.name} = {value}")
+        self.assure_connection()
+
+        try:
+            logger.debug(f"[{value}] Invocazione servizio getDocumentURL")
+            # Chiamata al Web Service passandogli il valore (es. "2026-UCALPRG-1000686")
+            record_url = self.service.getDocumentURL(id=value)
+
+            if record_url:
+                url_str = getattr(record_url, '_value_1', record_url)
+                logger.debug(f"[{value}] Risposta URL da getDocumentURL: {url_str}")
+
+                return str(url_str)
+            else:
+                logger.warning(f"[{value}] Il WS non ha restituito alcun URL.")
+                return None
+
+        except Exception as e:
+            logger.exception(f"[{value}] Errore fatale durante getDocumentURL: {e}")
+            raise
+
+
+
     def cercaDocumento(self, key, value):
         """Ricerca un documento in Titulus in base a chiave e valore."""
         self.assure_connection()

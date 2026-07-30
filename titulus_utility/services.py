@@ -939,3 +939,119 @@ def recupera_info_documenti(
             risultati[doc_id] = {"error": str(e)}
 
     return risultati
+
+
+def recupera_url_documento(
+        id_type,
+        doc_id,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        test=False,
+):
+    """
+    Recupera l'URL di accesso diretto a un singolo documento Titulus.
+    Restituisce l'URL come stringa.
+    """
+    logger.debug("Wrapper recupera_url_documento invocato.")
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+
+    valid_conf = credential_ws_protocollo and doc_id
+
+    # Uso id_type.name per stampare il nome dell'enum in modo pulito nel log
+    logger.info(f"Avvio recupero URL per {id_type.name} = {doc_id}")
+
+    if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Missing XML configuration or notification endpoint for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    wsclient = WSTitulusQueryClient(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+    )
+
+    # Richiama il metodo del client che abbiamo sistemato e salva il risultato
+    url_risultato = wsclient.get_document_url(id_type=id_type, value=doc_id)
+
+    return url_risultato
+
+
+def recupera_url_documenti(
+        id_type,
+        ids,
+        credential_ws_protocollo=None,
+        obj_to_credential=None,
+        test=False,
+):
+    """
+    Wrapper per il recupero massivo degli URL di accesso per una lista di documenti Titulus.
+
+    Restituisce un dizionario dove la chiave è l'ID del documento e il valore è
+    l'URL di accesso (o un dizionario di errore in caso di fallimento per quel singolo ID).
+    Es: {'2026-UCALPRG-0000545': 'https://...', '2026-UCALPRG-0000320': 'https://...'}
+    """
+    logger.debug("Wrapper recupera_url_documenti invocato.")
+
+    # Recupero credenziali se non passate esplicitamente
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+
+    # La configurazione è valida se abbiamo le credenziali e almeno un ID da cercare
+    valid_conf = credential_ws_protocollo and ids
+
+    logger.info(f"Avvio recupero URL per {len(ids)} documenti (Tipo ID: {id_type.name})")
+
+    # Configurazione URL e Credenziali
+    if test:
+        logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
+        prot_url = titulus_settings.PROTOCOL_TEST_URL
+        prot_login = titulus_settings.PROTOCOL_TEST_LOGIN
+        prot_passw = titulus_settings.PROTOCOL_TEST_PASSW
+    elif not test and valid_conf:
+        logger.debug("Esecuzione in PRODUZIONE. Estrazione credenziali dai modelli Django.")
+        prot_url = titulus_settings.PROTOCOL_URL
+        prot_login = credential_ws_protocollo.protocollo_username
+        prot_passw = credential_ws_protocollo.protocollo_password
+    else:
+        error_msg = _("Missing XML configuration, or empty ids list for production")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    # Inizializzazione del Client
+    wsclient = WSTitulusQueryClient(
+        wsdl_url=prot_url,
+        username=prot_login,
+        password=prot_passw,
+    )
+
+    # Esecuzione del recupero dati massivo
+    risultati = {}
+
+    for doc_id in ids:
+        logger.debug(f"Recupero URL per documento: [{id_type.name} = {doc_id}]")
+        try:
+            # Richiama il metodo del client che abbiamo sistemato
+            doc_url = wsclient.get_document_url(
+                id_type=id_type,
+                value=doc_id
+            )
+            risultati[doc_id] = doc_url
+
+        except Exception as e:
+            # In caso di errore su un singolo ID, logghiamo l'errore ma continuiamo il ciclo
+            logger.error(f"Errore durante il recupero URL del documento {doc_id}: {e}")
+            risultati[doc_id] = {"error": str(e)}
+
+    return risultati
