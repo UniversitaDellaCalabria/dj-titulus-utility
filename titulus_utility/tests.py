@@ -72,10 +72,13 @@ class TitulusIntegrationTests(TestCase):
             principal_file_name=self.test_file_name,
             principal_file=self.test_file_content,
             test=True,
-            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_02_arrivo_protocollo_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -91,27 +94,22 @@ class TitulusIntegrationTests(TestCase):
             attachments=attachments,
             attachments_folder=self.attachment_folder,
             test=True,
-            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     def test_02_b_arrivo_protocollo_con_zip_principale(self):
-        """
-        Variante del test_02 in cui il file ZIP reale viene impostato
-        come documento principale del protocollo.
-        """
         import os
         from django.conf import settings
 
-        # 1. Recuperiamo gli allegati secondari come nel test originale
         attachments = self._get_test_attachments()
-
-        # 2. Costruiamo il percorso sicuro verso lo ZIP da usare come principale
         zip_path = os.path.join(settings.BASE_DIR, "media", "attachment_test", "ziptesst.zip")
         self.assertTrue(os.path.exists(zip_path), f"File ZIP principale non trovato: {zip_path}")
 
-        # 3. Leggiamo lo ZIP in modalità binaria
         with open(zip_path, "rb") as f:
             zip_principal_content = f.read()
 
@@ -121,16 +119,17 @@ class TitulusIntegrationTests(TestCase):
             credential_ws_protocollo=self.mock_cred,
             configuration_ws_protocollo=self.mock_conf,
             principal_file_name="ziptesst.zip",
-            principal_file=zip_principal_content,  # Passiamo i byte dello ZIP
+            principal_file=zip_principal_content,
             attachments=attachments,
             attachments_folder=self.attachment_folder,
             test=True,
-            # Manteniamo il tuo parametro del flusso d'esempio
-            linked_nrecord="000065145-UNICALPRG-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
-
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     # ==========================================
     # CASI PARTENZA - PROTOCOLLO DIRETTO
@@ -148,6 +147,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     def test_04_partenza_protocollo_con_allegati(self):
         attachments = self._get_test_attachments()
 
@@ -164,6 +166,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     # ==========================================
     # CASI ARRIVO - BOZZA E ITER
     # ==========================================
@@ -179,9 +184,12 @@ class TitulusIntegrationTests(TestCase):
             principal_file=self.test_file_content,
             test=True
         )
-        # Nelle bozze ci aspettiamo l'nrecord, non il numero di protocollo
+        # Nelle bozze ci aspettiamo l'nrecord e l'url, non il numero di protocollo
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_05_arrivo_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_arrivo(
@@ -195,9 +203,11 @@ class TitulusIntegrationTests(TestCase):
             test=True,
             invia_notifica=True
         )
-        # Nelle bozze ci aspettiamo l'nrecord, non il numero di protocollo
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_06_arrivo_bozza_iter_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -216,6 +226,9 @@ class TitulusIntegrationTests(TestCase):
         )
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_06_arrivo_bozza_iter_con_allegati_notifica(self):
         attachments = self._get_test_attachments()
@@ -236,6 +249,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     # ==========================================
     # CASI PARTENZA - BOZZA E ITER
     # ==========================================
@@ -254,6 +270,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     def test_07_1_partenza_bozza_iter_senza_allegati(self):
         risultato = services.avvia_iter_partenza(
             subject=f"TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati REPERTORIO - {self.current_time}",
@@ -269,6 +288,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     def test_07_partenza_bozza_iter_senza_allegati_notifica(self):
         risultato = services.avvia_iter_partenza(
             subject=f"TEST INTEGRAZIONE 7 - Partenza, Bozza/Iter, No Allegati e Notifica - {self.current_time}",
@@ -282,6 +304,9 @@ class TitulusIntegrationTests(TestCase):
         )
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_08_partenza_bozza_iter_con_allegati(self):
         attachments = self._get_test_attachments()
@@ -301,6 +326,9 @@ class TitulusIntegrationTests(TestCase):
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
 
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
     def test_08_partenza_bozza_iter_con_allegati_notifica(self):
         attachments = self._get_test_attachments()
 
@@ -318,6 +346,9 @@ class TitulusIntegrationTests(TestCase):
         )
         self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
 
     def test_09_recupera_numero_protocollo(self):
         risultato = services.recupera_numero_protocollo(

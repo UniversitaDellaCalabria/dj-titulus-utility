@@ -360,6 +360,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
         # Inizializziamo questi attributi poiché get_record_infos va a popolarli
         self.num_prot = None
         self.nrecord = None
+        self.document_url = None
 
     def get_record_infos(self, nrecord):
         """
@@ -598,15 +599,25 @@ class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
             if saveDocumentResponse:
                 logger.debug(f"Risposta raw da saveDocument: {saveDocumentResponse._value_1}")
                 root = ET.fromstring(saveDocumentResponse._value_1)
-                attribs = root[1][0].attrib
 
-                if TitulusDocNodeAttribs.NUM_PROT.value in attribs:
-                    self.num_prot = attribs[TitulusDocNodeAttribs.NUM_PROT.value]
-                    logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.num_prot}")
+                # 1. Estrazione URL (si trova alla radice come <url>...</url>)
+                url_node = root.find('url')
+                if url_node is not None:
+                    self.document_url = url_node.text
+                    logger.info(f"Salvataggio completato. Assegnato URL: {self.document_url}")
 
-                if TitulusDocNodeAttribs.NRECORD.value in attribs:
-                    self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD.value]
-                    logger.info(f"Salvataggio completato. Assegnato Nrecord: {self.nrecord}")
+                # 2. Estrazione attributi dal nodo <doc>
+                doc_node = root.find('.//doc')
+                if doc_node is not None:
+                    attribs = doc_node.attrib
+
+                    if TitulusDocNodeAttribs.NUM_PROT.value in attribs:
+                        self.num_prot = attribs[TitulusDocNodeAttribs.NUM_PROT.value]
+                        logger.info(f"Salvataggio completato. Assegnato Num Prot: {self.num_prot}")
+
+                    if TitulusDocNodeAttribs.NRECORD.value in attribs:
+                        self.nrecord = attribs[TitulusDocNodeAttribs.NRECORD.value]
+                        logger.info(f"Salvataggio completato. Assegnato Nrecord: {self.nrecord}")
 
                 return True
         except Exception as e:

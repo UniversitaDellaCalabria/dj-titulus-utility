@@ -245,12 +245,14 @@ def _esegui_flusso_protocollo(
         assert getattr(wsclient, TitulusDocNodeAttribs.NUM_PROT.value, None)
         principal_file_result[TitulusDocNodeAttribs.NUM_PROT.value] = wsclient.num_prot
         principal_file_result[TitulusDocNodeAttribs.NRECORD.value] = wsclient.nrecord
+        principal_file_result['url'] = wsclient.document_url
 
         logger.info(f"Azione completata. Protocollato: {wsclient.num_prot}")
     elif azione == 'attiva_iter':
         wsclient.salva_bozza_e_attiva_iter(test=test)
         assert getattr(wsclient, TitulusDocNodeAttribs.NRECORD.value, None)
         principal_file_result[TitulusDocNodeAttribs.NRECORD.value] = wsclient.nrecord
+        principal_file_result['url'] = wsclient.document_url
         logger.info(f"Azione completata. Iter attivato su nrecord: {wsclient.nrecord}")
 
     # Fascicolazione separata
