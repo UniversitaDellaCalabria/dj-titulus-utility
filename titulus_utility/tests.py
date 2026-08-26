@@ -808,8 +808,8 @@ class TitulusIntegrationTests(TestCase):
         # (Uso quelli presenti nel tuo XML precedente come esempio)
         protocolli_da_cercare = [
             "2026-UCALPRG-0000686",
-            "2026-UNICALPRG-0000545",
-            "2026-UNICALPRG-0000320"
+            "2026-UCALPRG-0000545",
+            "2026-UCALPRG-0000320"
         ]
 
         # 2. Definiamo le informazioni che vogliamo farci restituire (in questo caso TitulusDocNodeAttribs.NRECORD)
@@ -875,9 +875,9 @@ class TitulusIntegrationTests(TestCase):
         """
         # 1. Definiamo i numeri di protocollo di test
         protocolli_da_cercare = [
-            "2026-UNICALPRG-0000686",
-            "2026-UNICALPRG-0000545",
-            "2026-UNICALPRG-0000320"
+            "2026-UCALPRG-0000686",
+            "2026-UCALPRG-0000545",
+            "2026-UCALPRG-0000320"
         ]
 
         # 2. Invochiamo il wrapper massivo che abbiamo creato

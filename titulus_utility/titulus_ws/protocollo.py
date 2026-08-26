@@ -12,7 +12,7 @@ from zeep import Client, Settings, xsd
 from zeep.transports import Transport
 
 from titulus_utility import conf as titulus_settings
-from titulus_utility.conf import TitulusIdType, TitulusDocNodeAttribs
+from titulus_utility.conf import TitulusIdType, TitulusDocNodeAttribs, TitulusXmlPaths, TitulusFileAttribs
 from titulus_utility.titulus_ws.attachment_bean_utility import SOAPPayloadMixin
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class WSTitulusConnector(object):
 class WSTitulusMessageBroker(WSTitulusConnector, SOAPPayloadMixin):
     """
     Gestisce le operazioni di messaggistica e notifica di secondo livello
-    sul Web Service SOAP di Titulus (es. registrazione ricevute PECh/Flussi).
+    sul Web Service SOAP di Titulus (es. registrazione ricevute PEC/Flussi).
     """
 
     def __init__(self, wsdl_url, username, password, email_subject=None, email_from=None, email_to=None):
@@ -269,11 +269,11 @@ class WSTitulusFileClient(WSTitulusConnector, SOAPPayloadMixin):
 
             # 1. Cerca direttamente su self.document
             target_file_node = None
-            files_node = self.document.find('.//files')
+            files_node = self.document.find(TitulusXmlPaths.FILES)
 
             if files_node is not None:
-                for f_node in files_node.findall('xw:file', namespaces=namespaces):
-                    if f_node.attrib.get('title') == filename:
+                for f_node in files_node.findall(TitulusXmlPaths.XW_FILE, namespaces=namespaces):
+                    if f_node.attrib.get(TitulusFileAttribs.TITLE) == filename:
                         target_file_node = f_node
                         break
 
@@ -283,14 +283,14 @@ class WSTitulusFileClient(WSTitulusConnector, SOAPPayloadMixin):
             # 2. Ciclo per trovare il nodo xw:file più annidato (l'ultima versione/modifica)
             current_node = target_file_node
             while True:
-                child_node = current_node.find('xw:file', namespaces=namespaces)
+                child_node = current_node.find(TitulusXmlPaths.XW_FILE, namespaces=namespaces)
                 if child_node is not None:
                     current_node = child_node
                 else:
                     break
 
             # 3. Estrazione del fileId definitivo
-            file_id = current_node.attrib.get('name')
+            file_id = current_node.attrib.get(TitulusFileAttribs.NAME)
 
             if not file_id:
                 raise Exception(f"[{self.nrecord}] Attributo 'name' (fileId) non trovato per il file '{filename}'.")
@@ -318,7 +318,7 @@ class WSTitulusFileClient(WSTitulusConnector, SOAPPayloadMixin):
 
                     elif isinstance(attachment_bean, str):
                         root = ET.fromstring(attachment_bean)
-                        content_node = root.find('.//content')
+                        content_node = root.find(TitulusXmlPaths.CONTENT)
                         file_content = content_node.text if content_node is not None else None
 
                     else:
@@ -383,7 +383,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
                 logger.debug(f"[{nrecord}] Risposta raw da getRecordInfos: {record_info._value_1}")
                 root = ET.fromstring(record_info._value_1)
 
-                doc_node = root.find('.//doc')
+                doc_node = root.find(TitulusXmlPaths.DOC)
 
                 if doc_node is not None:
                     attribs = doc_node.attrib
@@ -490,7 +490,7 @@ class WSTitulusQueryClient(WSTitulusConnector):
         document_infos = self.cercaDocumento(id_type.value, value)
         root = ET.fromstring(document_infos._value_1)
         to_return = {}
-        doc_node = root.find('.//doc')
+        doc_node = root.find(TitulusXmlPaths.DOC)
         if doc_node is not None:
             attribs = doc_node.attrib
             for required_info in required_infos:
@@ -601,13 +601,13 @@ class WSTitulusClient(WSTitulusQueryClient, SOAPPayloadMixin):
                 root = ET.fromstring(saveDocumentResponse._value_1)
 
                 # 1. Estrazione URL (si trova alla radice come <url>...</url>)
-                url_node = root.find('url')
+                url_node = root.find(TitulusXmlPaths.URL)
                 if url_node is not None:
                     self.document_url = url_node.text
                     logger.info(f"Salvataggio completato. Assegnato URL: {self.document_url}")
 
                 # 2. Estrazione attributi dal nodo <doc>
-                doc_node = root.find('.//doc')
+                doc_node = root.find(TitulusXmlPaths.DOC)
                 if doc_node is not None:
                     attribs = doc_node.attrib
 

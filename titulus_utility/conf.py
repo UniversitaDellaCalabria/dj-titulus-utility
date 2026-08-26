@@ -468,3 +468,55 @@ class TitulusDocNodeAttribs(str, Enum):
     CHECKSUM_VER = "checksum_ver"
     IU_NAME = "iu_name"
     SCHEMA_VERSION = "schema_version"
+
+
+class TitulusXmlPaths(str, Enum):
+    """Percorsi XPath relativi per la ricerca nei nodi XML di Titulus."""
+    DOC = ".//doc"
+    FILES = ".//files"
+    XW_FILE = "xw:file"
+    URL = "url"
+    CONTENT = ".//content"
+
+class TitulusFileAttribs(str, Enum):
+    """Attributi specifici del nodo xw:file e altri nodi correlati."""
+    TITLE = "title"
+    NAME = "name"
+
+
+class TitulusResponseNodes(str, Enum):
+    """Mappatura dei nodi principali sotto la root <Response>."""
+
+    URL = "url"
+    DOCUMENT = "Document"
+    DOC = "doc"  # Figlio diretto di <Document>
+
+
+class TitulusDocChildrenNodes(str, Enum):
+    """Mappatura dei nodi figli all'interno del nodo <doc>."""
+
+    # --- Metadati Descrittivi ---
+    AUTORE = "autore"
+    OGGETTO = "oggetto"
+    CLASSIF = "classif"
+    ALLEGATO = "allegato"
+
+    # --- Riferimenti ---
+    RIF_INTERNI = "rif_interni"
+    RIF_ESTERNI = "rif_esterni"
+
+    # --- Estensioni e File ---
+    EXTRA = "extra"
+    FILES = "files"
+
+    # --- Sistema e Tracciamento ---
+    IMPRONTA = "impronta"
+    STORIA = "storia"
+
+
+class TitulusResponsePaths(str, Enum):
+    """(Opzionale) Mappatura dei percorsi XPath per i nodi principali della Response."""
+
+    URL = "/Response/url"
+    DOCUMENT = "/Response/Document"
+    DOC = "/Response/Document/doc"
