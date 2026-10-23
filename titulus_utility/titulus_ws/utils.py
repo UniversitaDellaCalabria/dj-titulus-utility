@@ -46,6 +46,10 @@ def get_protocol_dict(**kwargs):
         # --- Variabili Opzionali Base ---
         'voce_indice': kwargs.get('voce_indice'),
 
+        #doc interno
+        'nome_persona_mittente_interno': kwargs.get('mittente_nome_persona', ''),
+        'nome_uff_mittente_interno': kwargs.get('mittente_nome_uff', ''),
+        'cod_uff_mittente_interno': kwargs.get('mittente_cod_uff', ''),
         # --- Riferimento interno ---
         'nome_persona_rif_interno': kwargs.get('rif_interno'),
         'rif_interno_username': kwargs.get('rif_interno_username'),

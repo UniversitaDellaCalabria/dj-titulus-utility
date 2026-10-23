@@ -906,3 +906,92 @@ class TitulusIntegrationTests(TestCase):
             print(f"Num. Protocollo cercato: {doc_id}")
             print(f"URL estratto:            {valore_stampato}")
             print("-" * 50)
+
+# ==========================================
+    # CASI INTERNO - PROTOCOLLO DIRETTO E ITER
+    # ==========================================
+
+    def test_23_interno_protocollo_senza_allegati(self):
+        risultato = services.protocolla_interno(
+            subject=f"TEST INTEGRAZIONE 23 - Interno, Protocollo, No Allegati - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True,
+        )
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
+    def test_24_interno_protocollo_con_allegati(self):
+        attachments = self._get_test_attachments()
+
+        risultato = services.protocolla_interno(
+            subject=f"TEST INTEGRAZIONE 24 - Interno, Protocollo, Con Allegati - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            attachments=attachments,
+            attachments_folder=self.attachment_folder,
+            test=True,
+        )
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
+    def test_25_interno_bozza_iter_senza_allegati(self):
+        risultato = services.avvia_iter_interno(
+            subject=f"TEST INTEGRAZIONE 25 - Interno, Bozza/Iter, No Allegati - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            voce_indice="Iter Approva e Firma",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True,
+            invia_notifica=False,
+        )
+        # Nelle bozze ci aspettiamo l'nrecord, non il numero di protocollo
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])
+
+    def test_26_interno_bozza_iter_con_allegati(self):
+        attachments = self._get_test_attachments()
+
+        risultato = services.avvia_iter_interno(
+            subject=f"TEST INTEGRAZIONE 26 - Interno, Bozza/Iter, Con Allegati - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            voce_indice="Iter Approva e Firma",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            attachments=attachments,
+            attachments_folder=self.attachment_folder,
+            test=True,
+            invia_notifica=False,
+        )
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+        self.assertIn("url", risultato)
+        self.assertIsNotNone(risultato["url"])

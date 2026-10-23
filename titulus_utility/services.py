@@ -21,7 +21,7 @@ def _esegui_flusso_protocollo(
         azione,
         bozza,
         subject,
-        rif_esterno_data,
+        dati_specifici,
         valid_conf,
         invia_notifica,
         credential_ws_protocollo,
@@ -166,7 +166,7 @@ def _esegui_flusso_protocollo(
         method_notifica=method_notifica,
         auth_notifica=notification_auth,
         linked_nrecord=linked_nrecord,
-        **rif_esterno_data
+        **dati_specifici
     )
 
     if invia_notifica:
@@ -326,7 +326,10 @@ def protocolla_arrivo(
 
     valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and valid_fascicolazione
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     rif_esterno_data = {
         'nome_rif_esterno': getattr(user, 'first_name', ''),
         'cognome_rif_esterno': getattr(user, 'last_name', ''),
@@ -339,7 +342,7 @@ def protocolla_arrivo(
         azione='protocolla',
         bozza='no',
         subject=subject,
-        rif_esterno_data=rif_esterno_data,
+        dati_specifici=rif_esterno_data,
         valid_conf=valid_conf,
         invia_notifica=False,
         credential_ws_protocollo=credential_ws_protocollo,
@@ -392,7 +395,10 @@ def avvia_iter_arrivo(
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and voce_indice and valid_fascicolazione
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     rif_esterno_data = {
         'nome_rif_esterno': getattr(user, 'first_name', ''),
         'cognome_rif_esterno': getattr(user, 'last_name', ''),
@@ -405,7 +411,7 @@ def avvia_iter_arrivo(
         azione='attiva_iter',
         bozza='si',
         subject=subject,
-        rif_esterno_data=rif_esterno_data,
+        dati_specifici=rif_esterno_data,
         valid_conf=valid_conf,
         invia_notifica=invia_notifica,
         credential_ws_protocollo=credential_ws_protocollo,
@@ -475,7 +481,7 @@ def protocolla_partenza(
         azione='protocolla',
         bozza='no',
         subject=subject,
-        rif_esterno_data=rif_esterno_data,
+        dati_specifici=rif_esterno_data,
         valid_conf=valid_conf,
         invia_notifica=False,
         credential_ws_protocollo=credential_ws_protocollo,
@@ -531,7 +537,10 @@ def avvia_iter_partenza(
     valid_conf = credential_ws_protocollo and configuration_ws_protocollo and nome_rif_esterno and cod_fis_rif_esterno and voce_indice and valid_fascicolazione
     if invia_notifica:
         valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     rif_esterno_data = {
         'nome_rif_esterno': nome_rif_esterno,
         'cognome_rif_esterno': cognome_rif_esterno,
@@ -544,7 +553,7 @@ def avvia_iter_partenza(
         azione='attiva_iter',
         bozza='si',
         subject=subject,
-        rif_esterno_data=rif_esterno_data,
+        dati_specifici=rif_esterno_data,
         valid_conf=valid_conf,
         invia_notifica=invia_notifica,
         credential_ws_protocollo=credential_ws_protocollo,
@@ -573,7 +582,10 @@ def recupera_numero_protocollo(
     if obj_to_credential and not credential_ws_protocollo:
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     valid_conf = credential_ws_protocollo and nrecord
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     logger.info(f"Avvio recupero info per il record {nrecord}")
     if test:
         logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
@@ -611,7 +623,10 @@ def recupera_documenti(
     if obj_to_credential and not credential_ws_protocollo:
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
     valid_conf = credential_ws_protocollo and nrecord
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     logger.info(f"Avvio recupero files per il record {nrecord}")
     if test:
         logger.debug("Esecuzione in modalità TEST. Caricamento credenziali fittizie/test.")
@@ -685,7 +700,10 @@ def registra_ricevuta_documento(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
 
     valid_conf = credential_ws_protocollo and nrecord
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     if test:
         logger.debug("Esecuzione in modalità TEST per il Message Broker.")
         prot_url = titulus_settings.PROTOCOL_TEST_URL
@@ -807,7 +825,10 @@ def registra_ricevuta_eml_documento(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
 
     valid_conf = credential_ws_protocollo and nrecord
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     if test:
         logger.debug("Esecuzione in modalità TEST per il Message Broker (EML).")
         prot_url = titulus_settings.PROTOCOL_TEST_URL
@@ -896,7 +917,10 @@ def recupera_info_documenti(
 
     # La configurazione è valida se abbiamo le credenziali e almeno un ID da cercare
     valid_conf = credential_ws_protocollo and ids
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     logger.info(f"Avvio recupero info per {len(ids)} documenti (Tipo ID: {id_type.name})")
 
     # Configurazione URL e Credenziali
@@ -959,7 +983,10 @@ def recupera_url_documento(
         credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
 
     valid_conf = credential_ws_protocollo and doc_id
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     # Uso id_type.name per stampare il nome dell'enum in modo pulito nel log
     logger.info(f"Avvio recupero URL per {id_type.name} = {doc_id}")
 
@@ -1012,7 +1039,10 @@ def recupera_url_documenti(
 
     # La configurazione è valida se abbiamo le credenziali e almeno un ID da cercare
     valid_conf = credential_ws_protocollo and ids
-
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
     logger.info(f"Avvio recupero URL per {len(ids)} documenti (Tipo ID: {id_type.name})")
 
     # Configurazione URL e Credenziali
@@ -1057,3 +1087,133 @@ def recupera_url_documenti(
             risultati[doc_id] = {"error": str(e)}
 
     return risultati
+
+
+def protocolla_interno(
+        subject,
+        credential_ws_protocollo=None,
+        configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
+        mittente_nome_persona=None,
+        mittente_nome_uff=None,
+        mittente_cod_uff=None,
+        prot_template=None,
+        principal_file_name="",
+        principal_file=b"",
+        attachments_folder=None,
+        attachments=[],
+        test=False,
+        label_notifica=None,
+        method_notifica=None,
+        repertorio=None,
+        linked_nrecord=None
+):
+    """Wrapper per protocollare direttamente un documento tra uffici interni."""
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = mittente_nome_persona and mittente_nome_uff and mittente_cod_uff and credential_ws_protocollo and configuration_ws_protocollo and valid_fascicolazione
+
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+    # Passiamo i dati del mittente interno mascherandoli in un dict supplementare o tramite estensione del get_protocol_dict
+    dati_mittente_interno = {
+        'mittente_nome_persona': mittente_nome_persona,
+        'mittente_nome_uff': mittente_nome_uff,
+        'mittente_cod_uff': mittente_cod_uff,
+    }
+
+    return _esegui_flusso_protocollo(
+        tipo='interno',
+        azione='protocolla',
+        bozza='no',
+        subject=subject,
+        dati_specifici=dati_mittente_interno,
+        valid_conf=valid_conf,
+        invia_notifica=False,
+        credential_ws_protocollo=credential_ws_protocollo,
+        configuration_ws_protocollo=configuration_ws_protocollo,
+        prot_template=prot_template,
+        principal_file_name=principal_file_name,
+        principal_file=principal_file,
+        attachments_folder=attachments_folder,
+        attachments=attachments,
+        test=test,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica,
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
+    )
+
+
+def avvia_iter_interno(
+        subject,
+        voce_indice=None,
+        credential_ws_protocollo=None,
+        configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
+        mittente_nome_persona=None,
+        mittente_nome_uff=None,
+        mittente_cod_uff=None,
+        prot_template=None,
+        principal_file_name="",
+        principal_file=b"",
+        attachments_folder=None,
+        attachments=[],
+        test=False,
+        invia_notifica=False,
+        label_notifica='Invio notifica fine ITER',
+        method_notifica='POST',
+        repertorio=None,
+        linked_nrecord=None
+):
+    """Salva il documento interno in stato bozza e avvia il relativo Iter."""
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = mittente_nome_persona and mittente_nome_uff and mittente_cod_uff and credential_ws_protocollo and configuration_ws_protocollo and voce_indice and valid_fascicolazione
+
+    if invia_notifica:
+        valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+    dati_mittente_interno = {
+        'mittente_nome_persona': mittente_nome_persona,
+        'mittente_nome_uff': mittente_nome_uff,
+        'mittente_cod_uff': mittente_cod_uff,
+    }
+
+    return _esegui_flusso_protocollo(
+        tipo='interno',
+        azione='attiva_iter',
+        bozza='si',
+        subject=subject,
+        dati_specifici=dati_mittente_interno,
+        valid_conf=valid_conf,
+        invia_notifica=invia_notifica,
+        credential_ws_protocollo=credential_ws_protocollo,
+        configuration_ws_protocollo=configuration_ws_protocollo,
+        prot_template=prot_template,
+        principal_file_name=principal_file_name,
+        principal_file=principal_file,
+        attachments_folder=attachments_folder,
+        attachments=attachments,
+        test=test,
+        voce_indice=voce_indice,
+        label_notifica=label_notifica,
+        method_notifica=method_notifica,
+        repertorio=repertorio,
+        linked_nrecord=linked_nrecord
+    )
