@@ -1217,3 +1217,140 @@ def avvia_iter_interno(
         repertorio=repertorio,
         linked_nrecord=linked_nrecord
     )
+
+
+def trova_ed_esegui_flusso_protocollo(
+        subject,
+        user=None,
+        credential_ws_protocollo=None,
+        configuration_ws_protocollo=None,
+        obj_to_credential=None,
+        obj_to_configuration=None,
+        mittente_nome_persona=None,
+        mittente_nome_uff=None,
+        mittente_cod_uff=None,
+        nome_rif_esterno=None,
+        cognome_rif_esterno=None,
+        cod_fis_rif_esterno=None,
+        email_rif_esterno=None,
+        prot_template=None,
+        principal_file_name="",
+        principal_file=b"",
+        attachments_folder=None,
+        attachments=[],
+        test=False,
+        invia_notifica=False,
+        label_notifica='Invio notifica fine ITER',
+        method_notifica='POST',
+        linked_nrecord=None
+):
+    if obj_to_credential and not credential_ws_protocollo:
+        credential_ws_protocollo = CredentialWSProtocollo.get_active_protocol_credential(obj_to_credential)
+    if obj_to_configuration and not configuration_ws_protocollo:
+        configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
+
+    additional_cofig = None
+
+    if configuration_ws_protocollo and hasattr(configuration_ws_protocollo, 'additional_configuration'):
+        additional_cofig = configuration_ws_protocollo.additional_configuration
+
+    if not additional_cofig:
+        error_msg = _(
+            "Nessuna configurazione addizionale (AdditionalConfigurationWSProtocollo) trovata. Impossibile determinare il tipo di documento.")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    valid_fascicolazione = not configuration_ws_protocollo.protocollo_fascicolo_numero or configuration_ws_protocollo.protocollo_uo_rpa_matricola
+    valid_conf = credential_ws_protocollo and valid_fascicolazione
+
+    if invia_notifica:
+        valid_conf = valid_conf and titulus_settings.NOTIFICATION_ENDPOINT
+
+    if not test and not valid_conf:
+        error_msg = _("Problema con la configurazione o credenziali Titulus")
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    # Base kwargs comuni a tutte le chiamate
+    base_kwargs = {
+        'subject': subject,
+        'credential_ws_protocollo': credential_ws_protocollo,
+        'configuration_ws_protocollo': configuration_ws_protocollo,
+        'obj_to_credential': obj_to_credential,
+        'obj_to_configuration': obj_to_configuration,
+        'prot_template': prot_template,
+        'principal_file_name': principal_file_name,
+        'principal_file': principal_file,
+        'attachments_folder': attachments_folder,
+        'attachments': attachments,
+        'test': test,
+        'label_notifica': label_notifica,
+        'method_notifica': method_notifica,
+        'repertorio': additional_cofig.repertorio,
+        'linked_nrecord': linked_nrecord
+    }
+
+    # ==========================================
+    # GESTIONE DOCUMENTI INTERNI
+    # ==========================================
+    if additional_cofig.document_type == 'interno':
+        dati_interno = {
+            'mittente_nome_persona': mittente_nome_persona,
+            'mittente_nome_uff': mittente_nome_uff,
+            'mittente_cod_uff': mittente_cod_uff,
+        }
+        if additional_cofig.iter:
+            return avvia_iter_interno(
+                voce_indice=additional_cofig.iter.voce_indice,
+                invia_notifica=invia_notifica,
+                **dati_interno,
+                **base_kwargs
+            )
+        return protocolla_interno(
+            **dati_interno,
+            **base_kwargs
+        )
+
+    # ==========================================
+    # GESTIONE DOCUMENTI IN ARRIVO
+    # ==========================================
+    if additional_cofig.document_type == 'arrivo':
+        if not test and not user:
+            error_msg = _("Utente mancante per il flusso 'arrivo'")
+            logger.error(error_msg)
+            raise Exception(error_msg)
+
+        if additional_cofig.iter:
+            return avvia_iter_arrivo(
+                user=user,
+                voce_indice=additional_cofig.iter.voce_indice,
+                invia_notifica=invia_notifica,
+                **base_kwargs
+            )
+        return protocolla_arrivo(
+            user=user,
+            **base_kwargs
+        )
+
+    # ==========================================
+    # GESTIONE DOCUMENTI IN PARTENZA
+    # ==========================================
+    if additional_cofig.document_type == 'partenza':
+        dati_partenza = {
+            'nome_rif_esterno': nome_rif_esterno,
+            'cognome_rif_esterno': cognome_rif_esterno,
+            'cod_fis_rif_esterno': cod_fis_rif_esterno,
+            'email_rif_esterno': email_rif_esterno,
+        }
+
+        if additional_cofig.iter:
+            return avvia_iter_partenza(
+                voce_indice=additional_cofig.iter.voce_indice,
+                invia_notifica=invia_notifica,
+                **dati_partenza,
+                **base_kwargs
+            )
+        return protocolla_partenza(
+            **dati_partenza,
+            **base_kwargs
+        )

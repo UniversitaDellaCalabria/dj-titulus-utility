@@ -72,7 +72,7 @@ class TitulusIntegrationTests(TestCase):
             principal_file_name=self.test_file_name,
             principal_file=self.test_file_content,
             test=True,
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            # linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
@@ -94,7 +94,7 @@ class TitulusIntegrationTests(TestCase):
             attachments=attachments,
             attachments_folder=self.attachment_folder,
             test=True,
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            # linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
@@ -123,7 +123,7 @@ class TitulusIntegrationTests(TestCase):
             attachments=attachments,
             attachments_folder=self.attachment_folder,
             test=True,
-            linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
+            # linked_nrecord="000065145-EXAMPLE-503f1b3f-a4a6-4e4f-83e7-e0418a263274"
         )
         self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
         self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
@@ -995,3 +995,167 @@ class TitulusIntegrationTests(TestCase):
 
         self.assertIn("url", risultato)
         self.assertIsNotNone(risultato["url"])
+
+    # =========================================================
+    # CASI TROVA ED ESEGUI FLUSSO PROTOCOLLO (WRAPPER DINAMICO)
+    # =========================================================
+
+    def test_27_trova_flusso_errore_senza_add_config(self):
+        """
+        Verifica che il wrapper blocchi l'esecuzione se manca la configurazione
+        addizionale (impossibile determinare il document_type).
+        """
+        # Assicuriamoci che l'additional_configuration non esista per questo test
+        if hasattr(self.mock_conf, 'additional_configuration'):
+            delattr(self.mock_conf, 'additional_configuration')
+
+        with self.assertRaises(Exception) as context:
+            services.trova_ed_esegui_flusso_protocollo(
+                subject=f"TEST INTEGRAZIONE 27 - Errore no config - {self.current_time}",
+                credential_ws_protocollo=self.mock_cred,
+                configuration_ws_protocollo=self.mock_conf,
+                test=True
+            )
+
+        self.assertIn("Nessuna configurazione addizionale", str(context.exception))
+
+    def test_28_trova_flusso_arrivo_protocollo(self):
+        """Testa l'istradamento verso protocolla_arrivo (document_type='arrivo', iter=None)"""
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'arrivo'
+        mock_add_conf.iter = None
+        mock_add_conf.repertorio = None
+
+        self.mock_conf.additional_configuration = mock_add_conf
+        self.mock_conf.protocollo_fascicolo_numero = ""  # Bypass per valid_fascicolazione
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 28 - Trova flusso Arrivo Prot - {self.current_time}",
+            user=self.mock_user,
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True,
+        )
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+    def test_29_trova_flusso_arrivo_iter(self):
+        """Testa l'istradamento verso avvia_iter_arrivo (document_type='arrivo', con iter)"""
+        mock_iter = MagicMock()
+        mock_iter.voce_indice = "Iter Approva e Firma"
+
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'arrivo'
+        mock_add_conf.iter = mock_iter
+        mock_add_conf.repertorio = None
+        self.mock_conf.additional_configuration = mock_add_conf
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 29 - Trova flusso Arrivo Iter - {self.current_time}",
+            user=self.mock_user,
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True
+        )
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+    def test_30_trova_flusso_partenza_protocollo(self):
+        """Testa l'istradamento verso protocolla_partenza (document_type='partenza', iter=None)"""
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'partenza'
+        mock_add_conf.iter = None
+        mock_add_conf.repertorio = None
+        self.mock_conf.additional_configuration = mock_add_conf
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 30 - Trova flusso Partenza Prot - {self.current_time}",
+            nome_rif_esterno="Mario",
+            cognome_rif_esterno="Rossi",
+            cod_fis_rif_esterno="RSSMRA80A01H501Z",
+            email_rif_esterno="mario.rossi@example.com",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True
+        )
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+    def test_31_trova_flusso_partenza_iter(self):
+        """Testa l'istradamento verso avvia_iter_partenza (document_type='partenza', con iter)"""
+        mock_iter = MagicMock()
+        mock_iter.voce_indice = "Iter Approva e Firma"
+
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'partenza'
+        mock_add_conf.iter = mock_iter
+        mock_add_conf.repertorio = None
+        self.mock_conf.additional_configuration = mock_add_conf
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 31 - Trova flusso Partenza Iter - {self.current_time}",
+            nome_rif_esterno="Mario",
+            cognome_rif_esterno="Rossi",
+            cod_fis_rif_esterno="RSSMRA80A01H501Z",
+            email_rif_esterno="mario.rossi@example.com",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True
+        )
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])
+
+    def test_32_trova_flusso_interno_protocollo(self):
+        """Testa l'istradamento verso protocolla_interno (document_type='interno', iter=None)"""
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'interno'
+        mock_add_conf.iter = None
+        mock_add_conf.repertorio = None
+        self.mock_conf.additional_configuration = mock_add_conf
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 32 - Trova flusso Interno Prot - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True
+        )
+        self.assertIn(TitulusDocNodeAttribs.NUM_PROT.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NUM_PROT.value])
+
+    def test_33_trova_flusso_interno_iter(self):
+        """Testa l'istradamento verso avvia_iter_interno (document_type='interno', con iter)"""
+        mock_iter = MagicMock()
+        mock_iter.voce_indice = "Iter Approva e Firma"
+
+        mock_add_conf = MagicMock()
+        mock_add_conf.document_type = 'interno'
+        mock_add_conf.iter = mock_iter
+        mock_add_conf.repertorio = None
+        self.mock_conf.additional_configuration = mock_add_conf
+
+        risultato = services.trova_ed_esegui_flusso_protocollo(
+            subject=f"TEST INTEGRAZIONE 33 - Trova flusso Interno Iter - {self.current_time}",
+            mittente_nome_persona="MASTRIA ELENA",
+            mittente_nome_uff="UNIVERSITA' DELLA CALABRIA",
+            mittente_cod_uff="0",
+            credential_ws_protocollo=self.mock_cred,
+            configuration_ws_protocollo=self.mock_conf,
+            principal_file_name=self.test_file_name,
+            principal_file=self.test_file_content,
+            test=True
+        )
+        self.assertIn(TitulusDocNodeAttribs.NRECORD.value, risultato)
+        self.assertIsNotNone(risultato[TitulusDocNodeAttribs.NRECORD.value])

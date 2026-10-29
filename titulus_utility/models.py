@@ -207,6 +207,8 @@ class ConfigurationWSProtocollo(TimeStampedModel):
     def __str__(self):
         return "{} - {} ({})".format(self.name, self.content_type, self.object_id)
 
+
+
 class ConfigurationWSProtocolloOP(TimeStampedModel):
     """
     Modello per l'archiviazione dell'Operatore (OP) incaricato.
@@ -282,3 +284,13 @@ class Repertorio(models.Model):
 
     def __str__(self):
         return f"{self.code}-{self.repertorio}"
+
+class AdditionalConfigurationWSProtocollo(models.Model):
+    configurator=models.OneToOneField(ConfigurationWSProtocollo, on_delete=models.PROTECT, primary_key=True,related_name='additional_configuration')
+
+    POSSIBILE_DOCUMENT_TYPE = [('arrivo', 'Documento in Arrivo'),
+                                    ('partenza', 'Documento in Partenza'),
+                               ('interno','Documento tra Uffici')]
+    document_type=models.CharField(max_length=10, choices=POSSIBILE_DOCUMENT_TYPE,null=False, blank=False,verbose_name="Tipo di documento da protocollare")
+    iter=models.ForeignKey(VoceIndice,on_delete=models.PROTECT,blank=True,null=True,related_name='additional_configurations')
+    repertorio=models.ForeignKey(Repertorio,on_delete=models.PROTECT,blank=True,null=True,related_name='rep_additional_configurations')
