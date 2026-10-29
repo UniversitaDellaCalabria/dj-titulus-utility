@@ -1,12 +1,19 @@
 from django.contrib import admin
-from titulus_utility.models import CredentialWSProtocollo, ConfigurationWSProtocollo, VoceIndice, \
-    ConfigurationWSProtocolloCC, Repertorio, ConfigurationWSProtocolloOP
+from titulus_utility.models import *
 
 
 # admin.site.register(ConfigurationWSProtocollo)
 # admin.site.register(CredentialWSProtocollo)
 # admin.site.register(VoceIndice)
 
+class AdditionalConfigurationWSProtocolloInline(admin.StackedInline):
+    """Inline per la gestione della configurazione avanzata"""
+    model = AdditionalConfigurationWSProtocollo
+    can_delete = True  # Permette di rimuovere
+    classes = ['collapse']
+    verbose_name = "Configurazione avanzata"
+    verbose_name_plural = "Configurazioni avanzate"
+    
 class ConfigurationWSProtocolloOPInline(admin.StackedInline):
     """Inline per la gestione dell'Operatore (OP) - Relazione 1 a 1"""
     model = ConfigurationWSProtocolloOP
@@ -32,7 +39,11 @@ class ConfigurationWSProtocolloAdmin(admin.ModelAdmin):
     search_fields = ('name', 'object_id', 'protocollo_uo_rpa')
 
     # Inseriamo sia l'OP (1 a 1) che i CC (1 a N)
-    inlines = [ConfigurationWSProtocolloOPInline, ConfigurationWSProtocolloCCInline]
+    inlines = [
+        AdditionalConfigurationWSProtocolloInline,
+        ConfigurationWSProtocolloOPInline,
+        ConfigurationWSProtocolloCCInline
+    ]
 
     # Raggruppiamo i campi in sezioni ordinate
     fieldsets = (
