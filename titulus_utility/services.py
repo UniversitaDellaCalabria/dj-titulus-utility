@@ -1249,12 +1249,12 @@ def trova_ed_esegui_flusso_protocollo(
     if obj_to_configuration and not configuration_ws_protocollo:
         configuration_ws_protocollo = ConfigurationWSProtocollo.get_active_protocol_configuration(obj_to_configuration)
 
-    additional_cofig = None
+    additional_config = None
 
     if configuration_ws_protocollo and hasattr(configuration_ws_protocollo, 'additional_configuration'):
-        additional_cofig = configuration_ws_protocollo.additional_configuration
+        additional_config = configuration_ws_protocollo.additional_configuration
 
-    if not additional_cofig:
+    if not additional_config:
         error_msg = _(
             "Nessuna configurazione addizionale (AdditionalConfigurationWSProtocollo) trovata. Impossibile determinare il tipo di documento.")
         logger.error(error_msg)
@@ -1286,22 +1286,22 @@ def trova_ed_esegui_flusso_protocollo(
         'test': test,
         'label_notifica': label_notifica,
         'method_notifica': method_notifica,
-        'repertorio': additional_cofig.repertorio,
+        'repertorio': additional_config.repertorio,
         'linked_nrecord': linked_nrecord
     }
 
     # ==========================================
     # GESTIONE DOCUMENTI INTERNI
     # ==========================================
-    if additional_cofig.document_type == 'interno':
+    if additional_config.document_type == 'interno':
         dati_interno = {
             'mittente_nome_persona': mittente_nome_persona,
             'mittente_nome_uff': mittente_nome_uff,
             'mittente_cod_uff': mittente_cod_uff,
         }
-        if additional_cofig.iter:
+        if additional_config.iter:
             return avvia_iter_interno(
-                voce_indice=additional_cofig.iter.voce_indice,
+                voce_indice=additional_config.iter.voce_indice,
                 invia_notifica=invia_notifica,
                 **dati_interno,
                 **base_kwargs
@@ -1314,16 +1314,16 @@ def trova_ed_esegui_flusso_protocollo(
     # ==========================================
     # GESTIONE DOCUMENTI IN ARRIVO
     # ==========================================
-    if additional_cofig.document_type == 'arrivo':
+    if additional_config.document_type == 'arrivo':
         if not test and not user:
             error_msg = _("Utente mancante per il flusso 'arrivo'")
             logger.error(error_msg)
             raise Exception(error_msg)
 
-        if additional_cofig.iter:
+        if additional_config.iter:
             return avvia_iter_arrivo(
                 user=user,
-                voce_indice=additional_cofig.iter.voce_indice,
+                voce_indice=additional_config.iter.voce_indice,
                 invia_notifica=invia_notifica,
                 **base_kwargs
             )
@@ -1335,7 +1335,7 @@ def trova_ed_esegui_flusso_protocollo(
     # ==========================================
     # GESTIONE DOCUMENTI IN PARTENZA
     # ==========================================
-    if additional_cofig.document_type == 'partenza':
+    if additional_config.document_type == 'partenza':
         dati_partenza = {
             'nome_rif_esterno': nome_rif_esterno,
             'cognome_rif_esterno': cognome_rif_esterno,
@@ -1343,9 +1343,9 @@ def trova_ed_esegui_flusso_protocollo(
             'email_rif_esterno': email_rif_esterno,
         }
 
-        if additional_cofig.iter:
+        if additional_config.iter:
             return avvia_iter_partenza(
-                voce_indice=additional_cofig.iter.voce_indice,
+                voce_indice=additional_config.iter.voce_indice,
                 invia_notifica=invia_notifica,
                 **dati_partenza,
                 **base_kwargs
