@@ -286,7 +286,7 @@ class Repertorio(models.Model):
         return f"{self.code}-{self.repertorio}"
 
 class AdditionalConfigurationWSProtocollo(models.Model):
-    configurator=models.OneToOneField(ConfigurationWSProtocollo, on_delete=models.PROTECT, primary_key=True,related_name='additional_configuration')
+    configurator=models.OneToOneField(ConfigurationWSProtocollo, on_delete=models.CASCADE, primary_key=True,related_name='additional_configuration')
 
     POSSIBILE_DOCUMENT_TYPE = [('arrivo', 'Documento in Arrivo'),
                                     ('partenza', 'Documento in Partenza'),
